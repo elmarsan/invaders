@@ -6,12 +6,14 @@
 
 extern bool running;
 extern bool paused;
+extern bool muteSound;
 
 namespace platform
 {
 	[[nodiscard]] uint64_t getTicks();
 	void createWindow(int width, int height);
 	void updateWindow();
+	[[nodiscard]] Rect getWindowBarDims();
 	void playSound(int soundId);
 	void addBuffTexture(const Rect& srcRect, const Rect& dstRect);
 	void addBuffRect(const Rect& rect, uint32_t rgb);

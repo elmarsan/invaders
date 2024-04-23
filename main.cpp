@@ -9,6 +9,8 @@
 #include <vector>
 #include <cassert>
 
+#include <ctime>
+
 static bool debug = true;
 static int score = 0;
 static int lifes = 3;
@@ -22,8 +24,11 @@ Projectile playerProjectile{};
 
 Player player{};
 
+bool ufoAppeared = false;
+
 std::array<Enemy, 55> enemies{};
-std::array<Projectile, 3> enemyProjectiles{};
+// std::array<Projectile, 3> enemyProjectiles{};
+std::array<Projectile, 1> enemyProjectiles{};
 
 std::array<Obstacle, 4> obstacles{};
 
@@ -147,22 +152,18 @@ void checkCollisions()
 			if (!e.IsAlive())
 			{
 				continue;
-			}
+			}			
 
-			const auto eCollider = e.GetCollider();
-			const auto projCollider = playerProjectile.GetCollider();
-
-			if (projCollider.intersects(eCollider))
+			if (playerProjectile.GetCollider().intersects(e.GetCollider()))
 			{
 				platform::playSound(SOUND_INVADER_DESTROYED);
-				std::cout << "** Enemy destroyed **" << std::endl;
-				// e.Destroy();
+				std::cout << "** Enemy destroyed **" << std::endl;				
 				e.Die();
 				playerProjectile.Destroy();
 				score += e.GetScore();
 				break;
 			}
-			else if (player.GetCollider().intersects(eCollider))
+			else if (player.GetCollider().intersects(e.GetCollider()))
 			{
 				std::cout << "YOU DIE" << std::endl;
 				running = false;
@@ -174,22 +175,22 @@ void checkCollisions()
 	// Check if some enemy projectile collides with player or obstacles
 	for (auto& proj : enemyProjectiles)
 	{
-		if (proj.IsAlive())
+		if (!proj.IsAlive())
 		{
 			continue;
 		}
 
 		// Check if projectile has reached player
-		if (proj.GetCollider().intersects(player.GetCollider()))
-		{
-			if (--lifes == 0)
-			{
-				std::cout << "YOU DIE" << std::endl;
-				running = false;
-			}
-			proj.Destroy();
-			break;
-		}
+		//if (proj.GetCollider().intersects(player.GetCollider()))
+		//{
+		//	if (--lifes == 0)
+		//	{
+		//		std::cout << "YOU DIE" << std::endl;
+		//		running = false;
+		//	}
+		//	proj.Destroy();
+		//	break;
+		//}
 
 		// Check if projectile collides with any obstacle
 		for (auto& o : obstacles)
@@ -269,43 +270,28 @@ void updateEnemies()
 
 int main(int argc, char* args[])
 {
-	const int FPS = 30;
+	std::srand(NULL);
+
+	const int FPS = 60;
 	const int frameDelay = 1000 / FPS;
 
-	int frameStart = 0;
+	uint64_t frameStart = 0;
 	int frameTime;
 
 	initGame();
-
-	platform::createWindow(screenWidth, screenHeight);	
+	platform::createWindow(screenWidth, screenHeight);
 
 	while (running)
 	{
 		frameStart = platform::getTicks();
 
-		if (paused)
-		{
-			continue;
-		}
-
 		handleInput();
 		update();
-		render();		
+		render();
 
-		platform::clearBuff();
-		clearInputKeys();
-
-		// TODO: Move logic to sdl_platform.cpp
-		// Frametime
-		/*frameTime = SDL_GetTicks64() - frameStart;
-		if (frameDelay > frameTime)
-		{
-			
-			SDL_Delay(frameDelay - frameTime);
-		}*/
 		do {
-			frameStart = platform::getTicks();			
-		} while (frameDelay > frameStart);
+			frameTime = platform::getTicks() - frameStart;
+		} while (frameDelay > frameTime);
 	}
 
 	platform::exit();
@@ -314,30 +300,41 @@ int main(int argc, char* args[])
 
 void handleInput()
 {
-	if (isKeyDown(KEY_CODE_LEFT))
+	if (!paused)
 	{
-		std::cout << "moving to the left" << std::endl;
-		player.MoveLeft();
+		if (isKeyDown(KEY_CODE_LEFT))
+		{
+			player.MoveLeft();
+		}
+		if (isKeyDown(KEY_CODE_RIGHT))
+		{
+			player.MoveRight();
+		}
+		if (isKeyDown(KEY_CODE_SPACE))
+		{
+			if (!playerProjectile.IsAlive())
+			{
+				platform::playSound(SOUND_PLAYER_FIRE);
+				playerProjectile.SetPos(player.GetPosX(), (player.GetPosY() - player.GetH()) - 2);
+			}   			
+		}
 	}
-	else if (isKeyDown(KEY_CODE_RIGHT))
+	if (isKeyDown(KEY_CODE_ESCAPE))
 	{
-		player.MoveRight();
+		paused = !paused;
 	}
-	else if (isKeyDown(KEY_CODE_SPACE))
-	{
-		platform::playSound(SOUND_PLAYER_FIRE);
-		playerProjectile.SetPos(player.GetPosX(), (player.GetPosY() - player.GetH()) - 2);
-	}
-	else if (isKeyDown(KEY_CODE_ESCAPE))
-	{
-		std::cout << "************" << std::endl;
-		paused = paused ? false : true;
-	}
+
+	// clearInputKeys();
 }
 
 void update()
 {
 	platform::updateWindow();
+
+	if (paused)
+	{
+		return;
+	}
 
 	checkCollisions();
 
@@ -359,10 +356,8 @@ void update()
 			proj.UpdatePos();
 		}
 	}
-
-	// Uint64 ticks = SDL_GetTicks64();
-	uint64_t ticks = getTicks();
-
+	
+	uint64_t ticks = platform::getTicks();
 	// Lateral movement
 	if (ticks - enemyLastActionTick > enemyActionDelay)
 	{
@@ -378,16 +373,14 @@ void update()
 
 			// MOVE TO RIGHT
 			if (e.GetPosX() - 15 < 0)
-			{
-				std::cout << "Enemies to RIGHT" << std::endl;
+			{				
 				shipEnemyMove = SHIP_ENEMY_MOVE_RIGHT;
 				shipEnemyMoveDown = true;
 				break;
 			}
 			// MOVE TO LEFT
 			else if (e.GetPosX() + 15 > screenWidth - e.GetW())
-			{
-				std::cout << "Enemies to LEFT" << std::endl;
+			{				
 				shipEnemyMove = SHIP_ENEMY_MOVE_LEFT;
 				shipEnemyMoveDown = true;
 				break;
@@ -414,6 +407,10 @@ void update()
 
 		for (auto& e : enemies)
 		{
+			if (!e.IsAlive())
+			{
+				continue;
+			}
 			if (shipEnemyMoveDown)
 			{
 				e.MoveDown();
@@ -506,26 +503,60 @@ void renderShips()
 {
 	// Render enemies
 	for (const auto& e : enemies)
-	{
+	{				
 		if (e.IsAlive())
 		{
 			Rect dst{ e.GetPosX(), e.GetPosY(), e.GetW(), e.GetH() };
 			platform::addBuffTexture(e.GetTexture(), dst);
-		}
-	}
+		}		
+	}	
 
 	Rect dst{ player.GetPosX(), player.GetPosY(), player.GetW(), player.GetH() };
 	platform::addBuffTexture(player.GetTexture(), dst);
 }
 
+void renderPauseMenu()
+{
+	const std::array<Rect, 5> pauseSprite{
+		spriteLetters[SPRITE_LETTER_P],
+		spriteLetters[SPRITE_LETTER_A],
+		spriteLetters[SPRITE_LETTER_U],
+		spriteLetters[SPRITE_LETTER_S],
+		spriteLetters[SPRITE_LETTER_E],
+	};
+	
+	auto winBarDims = platform::getWindowBarDims();
+
+	int w = spriteFontW * spriteFontScaleX;
+	int h = spriteFontY * spriteFontScaleY;
+	int x = (screenWidth / 2) - (w * pauseSprite.size()) / 2;
+	int y = (screenHeight / 2) - (h * pauseSprite.size()) / 2 + winBarDims.x;
+	Rect dst{ x, y, w, h};
+
+	for (const auto& sprite : pauseSprite)
+	{		
+		platform::addBuffTexture(sprite, dst);
+		dst.x += w;
+	}	
+}
+
 void render()
 {
-	renderScore();
-	renderLifes();
-	renderObstacles();
-	renderProjectiles();
-	renderShips();
-	Rect bottomBar{ 0, screenHeight - 50, screenWidth, 5 };
-	platform::addBuffRect(bottomBar, 0xff0000);
+	if (paused)
+	{
+		renderPauseMenu();		
+	} 
+	else
+	{
+		renderScore();
+		renderLifes();
+		renderObstacles();
+		renderProjectiles();
+		renderShips();
+		Rect bottomBar{ 0, screenHeight - 50, screenWidth, 5 };
+		platform::addBuffRect(bottomBar, 0xff0000);
+	}
+	
 	platform::renderBuff();
+	platform::clearBuff();
 }

@@ -4,98 +4,9 @@
 #include <iostream>
 #include "platform.h"
 #include "rect.h"
+#include "asset.h"
 
-using namespace platform;
-
-const std::vector<Rect> spriteEnemy0{
-	Rect{1, 1, 16, 8},
-	Rect{1, 11, 16, 8}
-};
-
-const std::vector<Rect> spriteEnemy1{
-	Rect{19, 1, 16, 8},
-	Rect{19, 11, 16, 8}
-};
-
-const std::vector<Rect> spriteEnemy2{
-	Rect{37, 1, 16, 8},
-	Rect{37, 11, 16, 8}
-};
-
-const std::vector<Rect> spritePlayer{
-	Rect{1, 49, 16, 8},
-};
-
-const std::vector<Rect> spriteProjectile0{
-	Rect{1, 21, 3, 8},
-	Rect{6, 21, 3, 8},
-	Rect{11, 21, 3, 8},
-	Rect{16, 21, 3, 8},
-};
-
-const std::vector<Rect> spriteProjectile1{
-	Rect{21, 21, 3, 8},
-	Rect{26, 21, 3, 8},
-	Rect{31, 21, 3, 8},
-	Rect{36, 21, 3, 8},
-};
-
-const std::vector<Rect> spriteProjectile2{
-	Rect{41, 21, 3, 8},
-	Rect{46, 21, 3, 8},
-	Rect{51, 21, 3, 8},
-	Rect{56, 21, 3, 8},
-};
-
-const std::vector<Rect> spriteProjectilePlayer{
-	Rect{41, 21, 3, 8},
-};
-
-const std::vector<Rect> spriteNumbers{
-	Rect{21, 99, 8, 8}, // 0
-	Rect{31, 99, 8, 8}, // 1
-	Rect{41, 99, 8, 8}, // 2
-	Rect{51, 99, 8, 8}, // 3
-	Rect{61, 99, 8, 8}, // 4
-	Rect{71, 99, 8, 8}, // 5
-	Rect{1, 109, 8, 8}, // 6
-	Rect{11, 109, 8, 8}, // 7
-	Rect{21, 109, 8, 8}, // 8
-	Rect{31, 109, 8, 8}, // 9
-};
-
-const std::vector<Rect> spriteObstacle{
-	Rect{45, 31, 24, 16},
-};
-
-const std::vector<Rect> spriteDestroyEnemy{
-	Rect{55, 1, 16, 8},
-};
-
-enum SpriteType
-{
-	SPRITE_ENEMY_0,
-	SPRITE_ENEMY_1,
-	SPRITE_ENEMY_2,
-	SPRITE_PLAYER,
-	SPRITE_PROJECTILE_TYPE_0,
-	SPRITE_PROJECTILE_TYPE_1,
-	SPRITE_PROJECTILE_TYPE_2,
-	SPRITE_PROJECTILE_TYPE_PLAYER,
-	SPRITE_OBSTACLE,
-	SPRITE_DESTROY_ENEMY,
-};
-
-const int spriteScaleX = 3.5;
-const int spriteScaleY = 3.5;
-
-const int spriteFontScaleX = 3;
-const int spriteFontScaleY = 3;
-
-const int spriteFontW = 8;
-const int spriteFontY = 8;
-
-const float projectileSpeed = 0.08f;
+const float projectileSpeed = 4.5f;
 
 struct Sprite
 {
@@ -103,7 +14,7 @@ struct Sprite
 	Sprite(const std::vector<Rect>& frames) : frames(frames)
 	{
 		NextFrame();
-	}
+	}	
 
 	void NextFrame()
 	{
@@ -126,7 +37,7 @@ struct Sprite
 
 private:
 	std::vector<Rect> frames = {};
-	int currentFrameIdx = 0;
+	int currentFrameIdx = 0;	
 };
 
 struct Entity
@@ -230,19 +141,19 @@ struct Enemy : Entity
 		{
 			return;
 		}
-		
+
 		isDying = true;
-		dieStartMili = getTicks();		
+		dieStartMili = platform::getTicks();
 		SetSprite(spriteDestroyEnemy);
 	}
 
 	[[nodiscard]] bool IsDying() const { return isDying; }
 
 	void Update()
-	{		
+	{
 		if (isDying)
-		{			
-			if (dieStartMili + 2000 <= getTicks())
+		{
+			if (dieStartMili + 350 <= platform::getTicks())
 			{
 				std::cout << "Died" << std::endl;
 				isDying = false;
@@ -350,12 +261,14 @@ struct Obstacle : Entity
 
 	void ReceiveProjectile()
 	{
+		std::cout << "Impact" << std::endl;
 		life -= 20;
 		if (life == 0)
 		{
 			Destroy();
 		}
 	}
+
 private:
 	int life = 100;
 };

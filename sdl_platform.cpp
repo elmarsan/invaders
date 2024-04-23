@@ -11,9 +11,10 @@
 #include <iostream>
 
 bool running = false;
-bool paused = false;
+bool paused = true;
+bool muteSound = true;
 
-namespace platform 
+namespace platform
 {
 	SDL_Window* window;
 	SDL_Renderer* renderer;
@@ -49,7 +50,7 @@ namespace platform
 
 		running = true;
 		paused = false;
-	}
+	}	
 
 	void updateWindow()
 	{
@@ -80,14 +81,24 @@ namespace platform
 				case SDLK_ESCAPE: keyUp(KEY_CODE_ESCAPE); break;
 				}
 			}
-		}		
+		}
+	}
+
+	Rect getWindowBarDims()
+	{
+		int top;
+		int left;
+		int bottom;
+		int right;
+		SDL_GetWindowBordersSize(window, &top, &left, &bottom, &right);
+		return Rect{ static_cast<float>(top), static_cast<float>(left), static_cast<float>(bottom), static_cast<float>(right) };
 	}
 
 	void addBuffTexture(const Rect& srcRect, const Rect& dstRect)
 	{
 		SDL_Rect src{ srcRect.x, srcRect.y, srcRect.w, srcRect.h };
 		SDL_FRect dst{ dstRect.x, dstRect.y, dstRect.w, dstRect.h };
-		SDL_RenderCopyF(renderer, texture, &src, &dst);		
+		SDL_RenderCopyF(renderer, texture, &src, &dst);
 	}
 
 	void addBuffRect(const Rect& rect, uint32_t rgb)
@@ -102,30 +113,35 @@ namespace platform
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 	}
 
-	void clearBuff() 
-	{ 
+	void clearBuff()
+	{
 		SDL_RenderClear(renderer);
 	}
 
-	void renderBuff() 
+	void renderBuff()
 	{
-		SDL_RenderPresent(renderer); 
+		SDL_RenderPresent(renderer);
 	}
-	
-	void playSound(int soundId) 
-	{ 
+
+	void playSound(int soundId)
+	{
+		if (muteSound)
+		{
+			return;
+		}
+
 		auto path = getSoundPath(soundId);
 		assert(path != "", "Sound not found");
 
 		auto chunk = mixChunks[soundId];
 		if (chunk == nullptr)
 		{
-			auto wave = Mix_LoadWAV(path.c_str());			
+			auto wave = Mix_LoadWAV(path.c_str());
 			assert(wave != nullptr, "Unable to load: " + path);
 			mixChunks[soundId] = wave;
 
 		}
-		Mix_PlayChannel(0, chunk, 0); 
+		Mix_PlayChannel(0, chunk, 0);
 	}
 
 	void exit()
