@@ -41,3 +41,18 @@ struct Rect
 		return Rect{};
 	}
 };
+
+struct Point2D
+{
+	union {
+		float x;
+		float w;
+	};
+
+	union {
+		float y;
+		float h;
+	};
+};
+
+using Size2D = Point2D;

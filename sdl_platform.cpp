@@ -1,18 +1,15 @@
-#include "rect.h"
+#include "util.h"
 #include "input.h"
 #include "audio.h"
+#include "asset.h"
 
 #include <cstdint>
 #include <cassert>
+#include <vector>
 
 #include <SDL.h>
 #include <SDL_mixer.h>
 #include <SDL_image.h>
-#include <iostream>
-
-bool running = false;
-bool paused = true;
-bool muteSound = true;
 
 namespace platform
 {
@@ -47,10 +44,19 @@ namespace platform
 		texture = SDL_CreateTextureFromSurface(renderer, surface);
 		assert(texture != nullptr && "Unable to load sprites.png");
 		SDL_FreeSurface(surface);
+	}
 
-		running = true;
-		paused = false;
-	}	
+	void exit()
+	{
+		Mix_FreeChunk(fireWaveSound);
+		Mix_FreeChunk(invaderKilledSound);
+		Mix_CloseAudio();
+		Mix_Quit();
+		SDL_DestroyTexture(texture);
+		SDL_DestroyRenderer(renderer);
+		SDL_DestroyWindow(window);
+		SDL_Quit();
+	}
 
 	void updateWindow()
 	{
@@ -59,7 +65,7 @@ namespace platform
 		{
 			if (event.type == SDL_QUIT)
 			{
-				running = false;
+				platform::exit();
 			}
 			else if (event.type == SDL_KEYDOWN)
 			{
@@ -101,6 +107,69 @@ namespace platform
 		SDL_RenderCopyF(renderer, texture, &src, &dst);
 	}
 
+	void addBuffFont(const Point2D& dstPoint, const std::string text)
+	{
+		std::vector<Point2D> fontPoints;
+
+		for (const auto& c : text)
+		{
+			switch (c)
+			{
+			case 'A': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_A]); break;
+			case 'B': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_B]); break;
+			case 'C': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_C]); break;
+			case 'D': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_D]); break;
+			case 'E': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_E]); break;
+			case 'F': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_F]); break;
+			case 'G': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_G]); break;
+			case 'H': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_H]); break;
+			case 'I': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_I]); break;
+			case 'J': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_J]); break;
+			case 'K': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_K]); break;
+			case 'L': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_L]); break;
+			case 'M': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_M]); break;
+			case 'N': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_N]); break;
+			case 'O': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_O]); break;
+			case 'P': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_P]); break;
+			case 'Q': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_Q]); break;
+			case 'R': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_R]); break;
+			case 'S': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_S]); break;
+			case 'T': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_T]); break;
+			case 'U': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_U]); break;
+			case 'V': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_V]); break;
+			case 'W': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_W]); break;
+			case 'X': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_X]); break;
+			case 'Y': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_Y]); break;
+			case 'Z': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_Z]); break;
+			case '0': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_0]); break;
+			case '1': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_1]); break;
+			case '2': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_2]); break;
+			case '3': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_3]); break;
+			case '4': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_4]); break;
+			case '5': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_5]); break;
+			case '6': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_6]); break;
+			case '7': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_7]); break;
+			case '8': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_8]); break;
+			case '9': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_9]); break;
+			case '=': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_EQUAL]); break;
+			case '*': fontPoints.emplace_back(spriteFonts[FONT_CHARACTER_ASTERISK]); break;
+				// For blank spaces, a point outside the limits of the texture atlas is used.
+			case ' ': fontPoints.emplace_back(Point2D{ -100, -100 }); break;
+			}
+		}
+
+		int w = spriteFontWidth * spriteScaleX;
+		int h = spriteFontHeight * spriteScaleY;
+
+		SDL_FRect dst{ dstPoint.x, dstPoint.y, w, h };
+		for (const auto& p : fontPoints)
+		{
+			SDL_Rect src{ p.x, p.y, spriteFontWidth, spriteFontHeight };
+			SDL_RenderCopyF(renderer, texture, &src, &dst);
+			dst.x += w;
+		}
+	}
+
 	void addBuffRect(const Rect& rect, uint32_t rgb)
 	{
 		auto r = (rgb >> 24);
@@ -125,11 +194,6 @@ namespace platform
 
 	void playSound(int soundId)
 	{
-		if (muteSound)
-		{
-			return;
-		}
-
 		auto path = getSoundPath(soundId);
 		assert(path != "", "Sound not found");
 
@@ -142,17 +206,5 @@ namespace platform
 
 		}
 		Mix_PlayChannel(0, chunk, 0);
-	}
-
-	void exit()
-	{
-		Mix_FreeChunk(fireWaveSound);
-		Mix_FreeChunk(invaderKilledSound);
-		Mix_CloseAudio();
-		Mix_Quit();
-		SDL_DestroyTexture(texture);
-		SDL_DestroyRenderer(renderer);
-		SDL_DestroyWindow(window);
-		SDL_Quit();
 	}
 };

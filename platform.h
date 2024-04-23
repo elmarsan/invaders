@@ -1,12 +1,7 @@
 #pragma once
 
-#include "rect.h"
-
+#include "util.h"
 #include <cstdint>
-
-extern bool running;
-extern bool paused;
-extern bool muteSound;
 
 namespace platform
 {
@@ -16,6 +11,7 @@ namespace platform
 	[[nodiscard]] Rect getWindowBarDims();
 	void playSound(int soundId);
 	void addBuffTexture(const Rect& srcRect, const Rect& dstRect);
+	void addBuffFont(const Point2D& dstPoint, const std::string text);
 	void addBuffRect(const Rect& rect, uint32_t rgb);
 	void clearBuff();
 	void renderBuff();

@@ -8,7 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include_directories(lib/include)
  
-add_executable(invaders_sdl main.cpp sdl_platform.cpp input.cpp audio.cpp "asset.h" "game.cpp")
+add_executable(invaders_sdl main.cpp sdl_platform.cpp input.cpp audio.cpp game.cpp)
 target_include_directories(invaders_sdl PRIVATE "lib/include")
 target_link_directories(invaders_sdl PRIVATE "lib/lib")
 target_link_libraries(invaders_sdl PRIVATE SDL2 SDL2main SDL2_image SDL2_mixer)

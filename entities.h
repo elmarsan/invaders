@@ -3,7 +3,7 @@
 #include <vector>
 #include <iostream>
 #include "platform.h"
-#include "rect.h"
+#include "util.h"
 #include "asset.h"
 
 const float projectileSpeed = 4.5f;
@@ -11,10 +11,10 @@ const float projectileSpeed = 4.5f;
 struct Sprite
 {
 	Sprite() {}
-	Sprite(const std::vector<Rect>& frames) : frames(frames)
+	Sprite(const SpriteFrames& frames, float w, float h) : frames(frames), w(w), h(h)
 	{
 		NextFrame();
-	}	
+	}
 
 	void NextFrame()
 	{
@@ -24,20 +24,26 @@ struct Sprite
 		}
 	}
 
-	void SetSprite(const std::vector<Rect>& newFrames)
+	void SetSprite(const SpriteFrames& newFrames, float newW, float newH)
 	{
 		frames = newFrames;
+		w = newW;
+		h = newH;
 		NextFrame();
 	}
 
 	[[nodiscard]] Rect GetTexture() const
 	{
-		return frames[currentFrameIdx];
+		float x = frames[currentFrameIdx].x;
+		float y = frames[currentFrameIdx].y;
+		return Rect{ x, y, w, h };
 	}
 
 private:
-	std::vector<Rect> frames = {};
-	int currentFrameIdx = 0;	
+	SpriteFrames frames = {};
+	float w;
+	float h;
+	int currentFrameIdx = 0;
 };
 
 struct Entity
@@ -46,18 +52,18 @@ struct Entity
 	{
 		switch (spriteType)
 		{
-		case SPRITE_ENEMY_0: sprite = { spriteEnemy0 }; break;
+		case SPRITE_ENEMY_0: sprite = { spriteEnemy0, spriteShipWidth, spriteShipHeight }; break;
 
 
-		case SPRITE_ENEMY_1: sprite = { spriteEnemy1 }; break;
-		case SPRITE_ENEMY_2: sprite = { spriteEnemy2 }; break;
-		case SPRITE_PLAYER: sprite = { spritePlayer }; break;
-		case SPRITE_PROJECTILE_TYPE_0: sprite = { spriteProjectile0 }; break;
-		case SPRITE_PROJECTILE_TYPE_1: sprite = { spriteProjectile1 }; break;
-		case SPRITE_PROJECTILE_TYPE_2: sprite = { spriteProjectile2 }; break;
-		case SPRITE_PROJECTILE_TYPE_PLAYER: sprite = { spriteProjectilePlayer }; break;
-		case SPRITE_OBSTACLE: sprite = { spriteObstacle }; break;
-		case SPRITE_DESTROY_ENEMY: sprite = { spriteDestroyEnemy }; break;
+		case SPRITE_ENEMY_1: sprite = { spriteEnemy1, spriteShipWidth, spriteShipHeight }; break;
+		case SPRITE_ENEMY_2: sprite = { spriteEnemy2, spriteShipWidth, spriteShipHeight }; break;
+		case SPRITE_PLAYER: sprite = { spritePlayer, spriteShipWidth, spriteShipHeight }; break;
+		case SPRITE_PROJECTILE_TYPE_0: sprite = { spriteProjectile0, spriteProjectileWidth, spriteProjectileHeight }; break;
+		case SPRITE_PROJECTILE_TYPE_1: sprite = { spriteProjectile1, spriteProjectileWidth, spriteProjectileHeight }; break;
+		case SPRITE_PROJECTILE_TYPE_2: sprite = { spriteProjectile2, spriteProjectileWidth, spriteProjectileHeight }; break;
+		case SPRITE_PROJECTILE_TYPE_PLAYER: sprite = { spriteProjectilePlayer, spriteProjectileWidth, spriteProjectileHeight }; break;
+		case SPRITE_OBSTACLE: sprite = { spriteObstacle, spriteObstacleWidth, spriteObstacleHeight }; break;
+		case SPRITE_DESTROY_ENEMY: sprite = { spriteDestroyEnemy, spriteShipWidth, spriteShipHeight }; break;
 		}
 	}
 
@@ -81,9 +87,9 @@ struct Entity
 
 	[[nodiscard]] bool IsAlive() const { return x != -1 && y != -1; }
 
-	void SetSprite(const std::vector<Rect>& newFrames)
+	void SetSprite(const SpriteFrames& newFrames, float newW, float newH)
 	{
-		sprite.SetSprite(newFrames);
+		sprite.SetSprite(newFrames, newW, newH);
 	}
 
 protected:
@@ -144,7 +150,7 @@ struct Enemy : Entity
 
 		isDying = true;
 		dieStartMili = platform::getTicks();
-		SetSprite(spriteDestroyEnemy);
+		SetSprite(spriteDestroyEnemy, spriteShipWidth, spriteShipHeight);
 	}
 
 	[[nodiscard]] bool IsDying() const { return isDying; }
