@@ -1,280 +1,136 @@
 #pragma once
 
-#include <vector>
-#include <iostream>
-#include "platform.h"
 #include "util.h"
 #include "asset.h"
 
-const float projectileSpeed = 4.5f;
-
-struct Sprite
-{
-	Sprite() {}
-	Sprite(const SpriteFrames& frames, float w, float h) : frames(frames), w(w), h(h)
-	{
-		NextFrame();
-	}
-
-	void NextFrame()
-	{
-		if (++currentFrameIdx >= frames.size())
-		{
-			currentFrameIdx = 0;
-		}
-	}
-
-	void SetSprite(const SpriteFrames& newFrames, float newW, float newH)
-	{
-		frames = newFrames;
-		w = newW;
-		h = newH;
-		NextFrame();
-	}
-
-	[[nodiscard]] Rect GetTexture() const
-	{
-		float x = frames[currentFrameIdx].x;
-		float y = frames[currentFrameIdx].y;
-		return Rect{ x, y, w, h };
-	}
-
-private:
-	SpriteFrames frames = {};
-	float w;
-	float h;
-	int currentFrameIdx = 0;
-};
-
 struct Entity
 {
-	Entity(int spriteType, float x, float y) : x(x), y(y)
+	Entity(int type, Point2D coord);
+
+	void Render() const;
+	void UpdateSprite();
+	void SetSprite(const int spriteId);
+
+	[[nodiscard]] bool IsActive() const { return coord.x != -1 && coord.y != -1; }
+	[[nodiscard]] int GetType() const { return type; }
+
+	[[nodiscard]] float GetX() const { return coord.x; }
+	[[nodiscard]] float GetY() const { return coord.y; }
+	[[nodiscard]] float GetW() const { return spriteSize.w * spriteScaleX; }
+	[[nodiscard]] float GetH() const { return spriteSize.h * spriteScaleY; }
+
+	[[nodiscard]] Rect GetCollider() const
 	{
-		switch (spriteType)
-		{
-		case SPRITE_ENEMY_0: sprite = { spriteEnemy0, spriteShipWidth, spriteShipHeight }; break;
-
-
-		case SPRITE_ENEMY_1: sprite = { spriteEnemy1, spriteShipWidth, spriteShipHeight }; break;
-		case SPRITE_ENEMY_2: sprite = { spriteEnemy2, spriteShipWidth, spriteShipHeight }; break;
-		case SPRITE_PLAYER: sprite = { spritePlayer, spriteShipWidth, spriteShipHeight }; break;
-		case SPRITE_PROJECTILE_TYPE_0: sprite = { spriteProjectile0, spriteProjectileWidth, spriteProjectileHeight }; break;
-		case SPRITE_PROJECTILE_TYPE_1: sprite = { spriteProjectile1, spriteProjectileWidth, spriteProjectileHeight }; break;
-		case SPRITE_PROJECTILE_TYPE_2: sprite = { spriteProjectile2, spriteProjectileWidth, spriteProjectileHeight }; break;
-		case SPRITE_PROJECTILE_TYPE_PLAYER: sprite = { spriteProjectilePlayer, spriteProjectileWidth, spriteProjectileHeight }; break;
-		case SPRITE_OBSTACLE: sprite = { spriteObstacle, spriteObstacleWidth, spriteObstacleHeight }; break;
-		case SPRITE_DESTROY_ENEMY: sprite = { spriteDestroyEnemy, spriteShipWidth, spriteShipHeight }; break;
-		}
+		return Rect{ coord.x, coord.y, GetW(), GetH() };
 	}
 
-	void Destroy()
+	[[nodiscard]] Rect GetSprite() const
 	{
-		x = -1;
-		y = -1;
+		float x = spriteFrames[spriteCurrentFrameIdx].x;
+		float y = spriteFrames[spriteCurrentFrameIdx].y;
+		return Rect{ x, y, spriteSize.w, spriteSize.h };
 	}
 
-	[[nodiscard]] float GetPosX() const { return x; }
-	[[nodiscard]] float GetPosY() const { return y; }
-	[[nodiscard]] float GetW() const { return sprite.GetTexture().w * spriteScaleX; }
-	[[nodiscard]] float GetH() const { return sprite.GetTexture().h * spriteScaleY; }
-
-	[[nodiscard]] Rect GetTexture() const { return sprite.GetTexture(); }
-
-	[[nodiscard]] const Rect GetCollider() const
-	{
-		return Rect{ x, y, GetW(), GetH() };
-	}
-
-	[[nodiscard]] bool IsAlive() const { return x != -1 && y != -1; }
-
-	void SetSprite(const SpriteFrames& newFrames, float newW, float newH)
-	{
-		sprite.SetSprite(newFrames, newW, newH);
-	}
-
-protected:
-	float x;
-	float y;
-	Sprite sprite;
-};
-
-struct Enemy : Entity
-{
-	Enemy() : Entity(SPRITE_ENEMY_0, -1, -1) {}
-	Enemy(int sprite, float x, float y) : Entity(sprite, x, y)
-	{
-		switch (sprite)
-		{
-		case SPRITE_ENEMY_0:
-			score = 40;
-			projectileType = SPRITE_PROJECTILE_TYPE_0;
-			break;
-		case SPRITE_ENEMY_1:
-			score = 20;
-			projectileType = SPRITE_PROJECTILE_TYPE_1;
-			break;
-		case SPRITE_ENEMY_2:
-			score = 10;
-			projectileType = SPRITE_PROJECTILE_TYPE_2;
-			break;
-		}
-	}
-
-	void MoveLeft()
-	{
-		x -= 15;
-		sprite.NextFrame();
-	}
-
-	void MoveRight()
-	{
-		x += 15;
-		sprite.NextFrame();
-	}
-
-	void MoveDown()
-	{
-		y += 15;
-		sprite.NextFrame();
-	}
-
-	[[nodiscard]] int GetScore() const { return score; }
-	[[nodiscard]] int GetProjectileType() const { return projectileType; }
-
-	void Die()
-	{
-		if (death)
-		{
-			return;
-		}
-
-		isDying = true;
-		dieStartMili = platform::getTicks();
-		SetSprite(spriteDestroyEnemy, spriteShipWidth, spriteShipHeight);
-	}
-
-	[[nodiscard]] bool IsDying() const { return isDying; }
-
-	void Update()
-	{
-		if (isDying)
-		{
-			if (dieStartMili + 350 <= platform::getTicks())
-			{
-				std::cout << "Died" << std::endl;
-				isDying = false;
-				death = true;
-				Destroy();
-			}
-		}
-	}
+	void Destroy();
+	void SetPos(Point2D newCoord);
 
 private:
-	int score = 0;
-	int projectileType = 0;
+	SpriteFrames spriteFrames;
+	Size2D spriteSize;
+	int spriteCurrentFrameIdx = 0;
+	int spriteFrameDelay = 0;
+	int spriteLastTick = 0;
 
-	bool isDying = false;
-	bool death = false;
-	uint64_t dieStartMili = 0;
+protected:
+	int type;
+	Point2D coord;
+};
+
+enum class ShipState
+{
+	IDLE,
+	MOVE_DOWN,
+	MOVE_RIGHT,
+	MOVE_LEFT,
+	DESTROYING,
+	DESTROYED
+};
+
+struct Invader : Entity
+{
+public:
+	int screenWidth = 0;
+
+	Invader();
+	Invader(int type, Point2D coord);
+
+	[[nodiscard]] int GetScore() const { return score; }
+	[[nodiscard]] ShipState GetState() const { return state; }
+
+	void SetState(const ShipState newState);
+	void SwitchDirection();
+	void Update();
+
+private:
+	ShipState state = ShipState::IDLE;
+	int moveDelay = 300;
+	int moveLastTick = 0;
+	int destroyTicks = 50;
+	int destroyLastTick = 0;
+	float speedX = 15.0f;
+	float speedY = 30.0f;
+	int score = 0;
+};
+
+enum class ProjectileState
+{
+	IDLE,
+	MOVE_DOWN,
+	MOVE_UP
 };
 
 struct Projectile : Entity
 {
-	Projectile() : Entity(SPRITE_PROJECTILE_TYPE_PLAYER, -1, -1) {}
-	Projectile(int sprite, float x, float y) : Entity(sprite, x, y), type(sprite) {}
+public:
+	int screenHeight;
 
-	void SetPos(const float newX, const float newY)
-	{
-		x = newX;
-		y = newY;
-	}
+	Projectile();
+	Projectile(int projectileType, Point2D coord, float screenHeight);
 
-	void UpdatePos()
-	{
-		if (type == SPRITE_PROJECTILE_TYPE_PLAYER)
-		{
-			y -= projectileSpeed;
-		}
-		else
-		{
-			y += projectileSpeed;
-		}
-
-		sprite.NextFrame();
-
-		if (IsOutOfBound())
-		{
-			Destroy();
-		}
-	}
+	void Update();
 
 private:
-	int type = SPRITE_PROJECTILE_TYPE_PLAYER;
-
-	[[nodiscard]] bool IsOutOfBound() const
-	{
-		if (type == SPRITE_PROJECTILE_TYPE_PLAYER && y < 0)
-		{
-			return true;
-		}
-		// TODO: Fix!!!!!!!!!!!
-		else if (y > 800)
-		{
-			return true;
-		}
-		return false;
-	}
+	ProjectileState state = ProjectileState::IDLE;
 };
 
 struct Player : Entity
 {
-	// TODO: Fix!!!!!!!!!!!
-	Player() : Entity(SPRITE_PLAYER, (800.0f / 2), (640.0f - 100)) {}
+	Player(float screenWidth, float screenHeight);
 
-	void MoveLeft()
-	{
-		if (x - 15 < 0)
-		{
-			x = 0;
-		}
-		else
-		{
-			x -= 15;
-		}
-		sprite.NextFrame();
-	}
+	void SetState(const ShipState newState);
+	void Update();
 
-	void MoveRight()
-	{
-		// TODO: Fix!!!!!!!!!!!
-		if (x + 15 > (800.0f - GetW()))
-		{
-			// TODO: Fix!!!!!!!!!!!
-			x = (800.0f - GetW());
-		}
-		else
-		{
-			x += 15.0f;
-		}
-		sprite.NextFrame();
-	}
+	[[nodiscard]] ShipState GetState() const { return state; }
+
+public:
+	int screenWidth;
+	int screenHeight;
+
+private:
+	ShipState state = ShipState::IDLE;
+
+	int destroyTicks = 1200;
+	int destroyLastTick = 0;
 };
 
 struct Obstacle : Entity
 {
-	Obstacle() : Obstacle(-1, -1) {}
-	Obstacle(float x, float y) : Entity(SPRITE_OBSTACLE, x, y) {}
+	Obstacle();
+	Obstacle(Point2D coord);
 
-	void ReceiveProjectile()
-	{
-		std::cout << "Impact" << std::endl;
-		life -= 20;
-		if (life == 0)
-		{
-			Destroy();
-		}
-	}
-
+	void ReceiveProjectile(const Point2D impactCoord);
+	void Render();
 private:
-	int life = 100;
+	int life = 180;
+	std::vector<Point2D> impactCoords;
 };

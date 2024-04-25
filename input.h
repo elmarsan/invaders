@@ -8,6 +8,7 @@ enum KEY_CODE
 	KEY_CODE_RIGHT,
 	KEY_CODE_SPACE,
 	KEY_CODE_ESCAPE,
+	KEY_CODE_M,
 
 	KEY_CODE_COUNT,
 };
@@ -23,5 +24,5 @@ struct InputKey
 
 void keyDown(int code);
 void keyUp(int code);
-
 void clearInputKeys();
+void clearKey(int code);

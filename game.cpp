@@ -3,10 +3,13 @@
 #include "input.h"
 #include "audio.h"
 #include "util.h"
+#include "asset.h"
+
+#include <iostream>
+#include <random>
 
 bool running = true;
 bool paused = false;
-bool muteSound = false;
 
 Game::Game(int screenWidth, int screenHeight) : screenWidth(screenWidth), screenHeight(screenHeight)
 {
@@ -42,143 +45,230 @@ void Game::Run()
 
 void Game::HandleInput()
 {
-	if (stage == Stage::MENU)
+	if (state == State::MENU)
 	{
 		if (isKeyDown(KEY_CODE_SPACE))
 		{
-			stage = Stage::PLAYING;
+			state = State::PLAYING;
 			clearInputKeys();
 			return;
 		}
 	}
-	if (stage == Stage::PLAYING)
+	if (state == State::PLAYING)
 	{
-		if (isKeyDown(KEY_CODE_LEFT))
+		if (isKeyDown(KEY_CODE_LEFT) && player.GetState() != ShipState::MOVE_LEFT)
 		{
-			player.MoveLeft();
+			player.SetState(ShipState::MOVE_LEFT);
 		}
-		if (isKeyDown(KEY_CODE_RIGHT))
+		else if (isKeyUp(KEY_CODE_LEFT) && player.GetState() == ShipState::MOVE_LEFT)
 		{
-			player.MoveRight();
+			player.SetState(ShipState::IDLE);
 		}
-		if (isKeyDown(KEY_CODE_SPACE))
+		if (isKeyDown(KEY_CODE_RIGHT) && player.GetState() != ShipState::MOVE_RIGHT)
 		{
-			if (!playerProjectile.IsAlive())
+			player.SetState(ShipState::MOVE_RIGHT);
+		}
+		else if (isKeyUp(KEY_CODE_RIGHT) && player.GetState() == ShipState::MOVE_RIGHT)
+		{
+			player.SetState(ShipState::IDLE);
+		}
+
+		if (isKeyDown(KEY_CODE_SPACE) && enableSpaceKey)
+		{
+			if (!projectiles[0].IsActive())
 			{
-				platform::playSound(SOUND_PLAYER_FIRE);
-				playerProjectile.SetPos(player.GetPosX(), (player.GetPosY() - player.GetH()) - 2);
-			}
+				platform::playSound(SOUND_PLAYER_FIRE, 0);
+				Point2D coord = { player.GetX() + player.GetW() / 2.2f, (player.GetY() - player.GetH()) - 2 };
+				projectiles[0] = Projectile{ SPRITE_PROJECTILE_TYPE_PLAYER, coord, static_cast<float>(screenHeight) };
+			}			
+			enableSpaceKey = false;
+		} 
+		else if (isKeyUp(KEY_CODE_SPACE))
+		{
+			enableSpaceKey = true;
 		}
 	}
 	if (isKeyDown(KEY_CODE_ESCAPE))
 	{
 		paused = !paused;
 	}
+	if (isKeyDown(KEY_CODE_M) && enableMKey)
+	{
+		platform::toggleSound();
+		enableMKey = false;
+	} 
+	else if (isKeyUp(KEY_CODE_M) && !enableMKey)
+	{
+		enableMKey = true;
+	}
 }
 
 void Game::Update()
 {
-	if (paused || stage == Stage::MENU)
+	if (paused || state == State::MENU)
 	{
 		return;
 	}
 
-	if (stage == Stage::END_GAME)
+	switch (state)
 	{
+	case State::END_GAME:
 		Init();
-		stage = Stage::MENU;
-	}
-
-	CheckCollisions();
-
-	for (auto& e : enemies)
-	{
-		e.Update();
-	}
-
-	// Update player projectile position
-	if (playerProjectile.IsAlive())
-	{
-		playerProjectile.UpdatePos();
-	}
-	// Update enemy projectiles
-	for (auto& proj : enemyProjectiles)
-	{
-		if (proj.IsAlive())
+		state = State::MENU;
+		break;
+	case State::PLAYER_DESTROYED:
+		if (player.GetState() == ShipState::DESTROYING)
 		{
-			proj.UpdatePos();
+			player.Update();
+			return;
+		}
+		else if (player.GetState() == ShipState::DESTROYED && lifes > 0)
+		{
+			state = State::PLAYING;
+			projectiles.fill(Projectile{});
+			return;
+		}
+		else if (player.GetState() == ShipState::DESTROYED && lifes == 0)
+		{
+			state = State::END_GAME;
+			return;
 		}
 	}
 
-	uint64_t ticks = platform::getTicks();
-	// Lateral movement
-	if (ticks - enemyLastActionTick > enemyActionDelay)
-	{
-		// updateEnemies();
-		// If any enemy it's on x limits (0 or 800) it changes the direction to the opposite side.
-		shipEnemyMoveDown = false;
-		for (const auto& e : enemies)
-		{
-			if (!e.IsAlive())
-			{
-				continue;
-			}
+	player.Update();
 
-			// MOVE TO RIGHT
-			if (e.GetPosX() - 15 < 0)
+	for (auto& p : projectiles)
+	{
+		p.Update();
+	}
+
+	if (Game::HasToSwitchInvaderDir())
+	{
+		for (auto& i : invaders)
+		{
+			i.SwitchDirection();
+			i.Update();
+		}
+	}
+	// Update invaders pos and fire if can
+	else
+	{
+		// Update positions
+		for (auto& i : invaders)
+		{
+			i.Update();
+		}
+
+		// Find empty projectile idxs
+		std::vector<int> freeProjIdxs;
+		for (int i = 1; i < projectiles.size(); i++)
+		{
+			if (!projectiles[i].IsActive())
 			{
-				shipEnemyMove = SHIP_ENEMY_MOVE_RIGHT;
-				shipEnemyMoveDown = true;
-				break;
-			}
-			// MOVE TO LEFT
-			else if (e.GetPosX() + 15 > screenWidth - e.GetW())
-			{
-				shipEnemyMove = SHIP_ENEMY_MOVE_LEFT;
-				shipEnemyMoveDown = true;
-				break;
+				freeProjIdxs.push_back(i);
 			}
 		}
 
-		// Enemy firing		
-		auto x = GetCanShootEnemyIds();
-		for (auto it = x.rbegin(); it != x.rend(); ++it) {
-			const auto& enemy = enemies[*it];
-			if (player.GetPosX() >= enemy.GetPosX() - 30 && player.GetPosX() <= enemy.GetPosX() + 30)
+		// If projectiles available then fire
+		if (!freeProjIdxs.empty())
+		{
+			for (int i = 0; i < invaders.size(); i++)
 			{
-				// find empty projectile
-				for (auto& proj : enemyProjectiles)
+				if (!invaders[i].IsActive())
 				{
-					if (!proj.IsAlive())
+					continue;
+				}
+
+				if (freeProjIdxs.empty())
+				{
+					break;
+				}
+
+				// The invader can shoot if there are no enemies in front of him
+				if (invaderCanShoot[i])
+				{
+					// Player is in front
+					if (player.GetX() >= invaders[i].GetX() - 30 && player.GetX() <= invaders[i].GetX() + 30)
 					{
-						proj = Projectile{ enemy.GetProjectileType(), enemy.GetPosX(), enemy.GetPosY() };
-						break;
+						InvaderFire(i, freeProjIdxs.back());
+						freeProjIdxs.pop_back();
+					}
+					// Check for in front obstacles
+					else
+					{
+						for (const auto& o : obstacles)
+						{
+							if (!o.IsActive())
+							{
+								continue;
+							}
+
+							// Obstacle in front
+							if (o.GetX() >= invaders[i].GetX() - 30 && o.GetX() <= invaders[i].GetX() + 30)
+							{
+								InvaderFire(i, freeProjIdxs.back());
+								freeProjIdxs.pop_back();
+							}
+						}
 					}
 				}
 			}
 		}
+	}
 
-		for (auto& e : enemies)
+	// Spawn ufo
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_int_distribution<> dis(1, 1000);
+	int random_num = dis(gen);
+	if (!invaders[ufoIdx].IsActive() && !ufoAppeared && random_num == 1000)
+	{
+		invaders[ufoIdx].SetPos({ 0, 20 });
+		invaders[ufoIdx].screenWidth = screenWidth;
+		ufoAppeared = true;
+	}
+
+	CheckCollisions();
+}
+
+[[nodiscard]] bool Game::HasToSwitchInvaderDir()
+{
+	for (int i = 0; i < invaders.size() - 1; i++)
+	{
+		// Some invader reached X left limit
+		if (invaders[i].GetX() <= 0 && invaders[i].GetState() == ShipState::MOVE_LEFT)
 		{
-			if (!e.IsAlive())
-			{
-				continue;
-			}
-			if (shipEnemyMoveDown)
-			{
-				e.MoveDown();
-			}
-			if (shipEnemyMove == SHIP_ENEMY_MOVE_LEFT)
-			{
-				e.MoveLeft();
-			}
-			else if (shipEnemyMove == SHIP_ENEMY_MOVE_RIGHT)
-			{
-				e.MoveRight();
-			}
+			return true;
 		}
+		// Some invader reached X right limit
+		else if (invaders[i].GetX() + invaders[i].GetW() >= screenWidth && invaders[i].GetState() == ShipState::MOVE_RIGHT)
+		{
+			return true;
+		}
+		// Y limit reached, restart game
+		else if (invaders[i].GetY() >= screenHeight - 50)
+		{
+			state = State::END_GAME;
+		}
+	}
+	return false;
+}
 
-		enemyLastActionTick = ticks;
+// Fire projectile from invader by given idx using projectile based on projIdx.
+void Game::InvaderFire(const int idx, const int projIdx)
+{
+	Point2D coord = { invaders[idx].GetX() + invaders[idx].GetW() / 2.2f, (invaders[idx].GetY() + invaders[idx].GetH() + 0.5f) };
+	switch (invaders[idx].GetType())
+	{
+	case SPRITE_ENEMY_0:
+		projectiles[projIdx] = Projectile{ SPRITE_PROJECTILE_TYPE_0, coord, static_cast<float>(screenHeight) };
+		break;
+	case SPRITE_ENEMY_1:
+		projectiles[projIdx] = Projectile{ SPRITE_PROJECTILE_TYPE_1, coord, static_cast<float>(screenHeight) };
+		break;
+	case SPRITE_ENEMY_2:
+		projectiles[projIdx] = Projectile{ SPRITE_PROJECTILE_TYPE_2, coord, static_cast<float>(screenHeight) };
+		break;
 	}
 }
 
@@ -188,127 +278,135 @@ void Game::Render()
 	{
 		RenderPauseMenu();
 	}
-	else if (stage == Stage::MENU)
+	else if (state == State::MENU)
 	{
 		RenderMenu();
 	}
 	else
 	{
+		player.Render();
+
 		RenderScore();
 		RenderLifes();
-		RenderObstacles();
-		RenderProjectiles();
-		RenderShips();
+
+		for (auto& o : obstacles)
+		{
+			o.Render();
+		}
+		for (const auto& p : projectiles)
+		{
+			p.Render();
+		}
+		for (const auto& i : invaders)
+		{
+			i.Render();
+		}
+
 		Rect bottomBar{ 0, screenHeight - 50, screenWidth, 5 };
-		platform::addBuffRect(bottomBar, 0xff0000);
+		platform::addBuffRect(bottomBar, 0xff0000, true);
 	}
 
 	platform::renderBuff();
 	platform::clearBuff();
 }
 
-void Game::CheckCollisions()
+void Game::DestroyInvader(const int idx)
 {
-	// Check if some enemy collides with player or player projectile
-	if (playerProjectile.IsAlive())
+	platform::playSound(SOUND_INVADER_DESTROYED, 2);
+	invaders[idx].SetState(ShipState::DESTROYING);
+	score += invaders[idx].GetScore();
+	if (idx >= 11)
 	{
-		for (auto& e : enemies)
-		{
-			if (!e.IsAlive())
-			{
-				continue;
-			}
-
-			if (playerProjectile.GetCollider().intersects(e.GetCollider()))
-			{
-				platform::playSound(SOUND_INVADER_DESTROYED);
-				std::cout << "** Enemy destroyed **" << std::endl;
-				e.Die();
-				playerProjectile.Destroy();
-				score += e.GetScore();
-				break;
-			}
-			else if (player.GetCollider().intersects(e.GetCollider()))
-			{
-				std::cout << "YOU DIE" << std::endl;
-				running = false;
-				break;
-			}
-		}
-	}
-
-	// Check if some enemy projectile collides with player or obstacles
-	for (auto& proj : enemyProjectiles)
-	{
-		if (!proj.IsAlive())
-		{
-			continue;
-		}
-
-		// Check if projectile has reached player
-		if (proj.GetCollider().intersects(player.GetCollider()))
-		{
-			if (--lifes == 0)
-			{
-				std::cout << "YOU DIE" << std::endl;
-				stage = Stage::END_GAME;
-			}
-			proj.Destroy();
-			break;
-		}
-
-		// Check if projectile collides with any obstacle
-		for (auto& o : obstacles)
-		{
-			if (!o.IsAlive())
-			{
-				continue;
-			}
-			if (proj.GetCollider().intersects(o.GetCollider()))
-			{
-				o.ReceiveProjectile();
-				proj.Destroy();
-				break;
-			}
-		}
+		invaderCanShoot[idx - 11] = true;
 	}
 }
 
-std::vector<int> Game::GetCanShootEnemyIds()
+void Game::CheckCollisions()
 {
-	std::vector<int> canShootEnemyIds{};
-
-	for (int i = 0; i < enemies.size(); i++)
+	// Check collison of enemy projectiles with player projectiles and obstacles
+	for (int i = 1; i < projectiles.size(); i++)
 	{
-		if (!enemies[i].IsAlive())
+		if (projectiles[i].GetCollider().intersects(projectiles[0].GetCollider()))
 		{
-			continue;
-		}
-		if (i < 44)
-		{
-			bool nothingInFront = true;
-			for (int j = i + 11; j < enemies.size(); j += 11)
-			{
-				if (enemies[j].IsAlive())
-				{
-					nothingInFront = false;
-					break;
-				}
-			}
-
-			if (nothingInFront)
-			{
-				canShootEnemyIds.push_back(i);
-			}
-		}
-		// Enemy is alive and it's on the last row
-		else
-		{
-			canShootEnemyIds.push_back(i);
+			projectiles[0].Destroy();
+			projectiles[i].Destroy();
 		}
 	}
 
-	return canShootEnemyIds;
+	for (auto& p : projectiles)
+	{
+		if (!p.IsActive())
+		{
+			continue;
+		}
+
+		auto projColl = p.GetCollider();
+		auto playerColl = player.GetCollider();
+
+		if (projColl.intersects(playerColl))
+		{
+			--lifes;
+			player.SetState(ShipState::DESTROYING);
+			p.Destroy();
+			state = State::PLAYER_DESTROYED;
+			return;
+		}
+
+		for (int i = 0; i < invaders.size(); i++)
+		{
+			if (!invaders[i].IsActive())
+			{
+				continue;
+			}
+
+			if (projColl.intersects(invaders[i].GetCollider()))
+			{
+				p.Destroy();
+				DestroyInvader(i);
+				return;
+			}
+		}
+
+		for (auto& o : obstacles)
+		{
+			Rect collision = projColl.intersectRect(o.GetCollider());
+			if (!collision.IsZero())
+			{
+				o.ReceiveProjectile({ collision.x, collision.y });
+				p.Destroy();
+				break;
+			}
+		}
+	}
+
+	// Invader with obstacle and player
+	for (auto& i : invaders)
+	{
+		if (!i.IsActive())
+		{
+			continue;
+		}
+
+		if (i.GetCollider().intersects(player.GetCollider()))
+		{
+			state = State::END_GAME;
+			return;
+		}
+
+		for (auto& o : obstacles)
+		{
+			if (!o.IsActive())
+			{
+				continue;
+			}
+
+			if (o.GetCollider().intersects(i.GetCollider()))
+			{
+				state = State::END_GAME;
+				return;
+			}
+		}
+	}
 }
 
 void Game::RenderScore()
@@ -325,59 +423,12 @@ void Game::RenderLifes()
 	platform::addBuffFont(dstPoint, std::to_string(lifes));
 
 	Rect dst{ 60, screenHeight - 40, player.GetW(), player.GetH() };
+	Rect src{ spritePlayer[0].x, spritePlayer[0].y, spriteShipWidth, spriteShipHeight };
 	for (int i = 0; i < lifes; i++)
 	{
-		platform::addBuffTexture(player.GetTexture(), dst);
+		platform::addBuffTexture(src, dst);
 		dst.x += player.GetW();
 	}
-}
-
-void Game::RenderObstacles()
-{
-	for (const auto& o : obstacles)
-	{
-		if (o.IsAlive())
-		{
-			Rect dst{ o.GetPosX(), o.GetPosY(), o.GetW(), o.GetH() };
-			platform::addBuffTexture(o.GetTexture(), dst);
-		}
-	}
-}
-
-void Game::RenderProjectiles()
-{
-	// Render player projectile
-	if (playerProjectile.IsAlive())
-	{
-		Rect dst{ playerProjectile.GetPosX(), playerProjectile.GetPosY(), playerProjectile.GetW(), playerProjectile.GetH() };
-		platform::addBuffTexture(playerProjectile.GetTexture(), dst);
-	}
-
-	// Render enemy projectiles
-	for (const auto& proj : enemyProjectiles)
-	{
-		if (proj.IsAlive())
-		{
-			Rect dst{ proj.GetPosX(), proj.GetPosY(), proj.GetW(), proj.GetH() };
-			platform::addBuffTexture(proj.GetTexture(), dst);
-		}
-	}
-}
-
-void Game::RenderShips()
-{
-	// Render enemies
-	for (const auto& e : enemies)
-	{
-		if (e.IsAlive())
-		{
-			Rect dst{ e.GetPosX(), e.GetPosY(), e.GetW(), e.GetH() };
-			platform::addBuffTexture(e.GetTexture(), dst);
-		}
-	}
-
-	Rect dst{ player.GetPosX(), player.GetPosY(), player.GetW(), player.GetH() };
-	platform::addBuffTexture(player.GetTexture(), dst);
 }
 
 void Game::RenderPauseMenu()
@@ -411,7 +462,7 @@ void Game::RenderMenu()
 	text = "PRESS SPACE TO PLAY";
 	dstPoint.x = (screenWidth / 2) - (w * text.size()) / 2;
 	dstPoint.y += h * 2;
-	platform::addBuffFont(dstPoint, text);
+	platform::addBuffFont(dstPoint, text);	
 
 	text = "*SCORE TABLE*";
 	dstPoint.x = (screenWidth / 2) - (w * text.size()) / 2 - 30;
@@ -445,6 +496,11 @@ void Game::RenderMenu()
 	srcRect = { spriteEnemy2[0].x, spriteEnemy2[0].y, spriteShipWidth, spriteShipHeight };
 	dstRect = { dstPoint.x - 60, dstPoint.y, spriteShipWidth * spriteScaleX, spriteShipHeight * spriteScaleY };
 	platform::addBuffTexture(srcRect, dstRect);
+	platform::addBuffFont(dstPoint, text);	
+
+	text = "PRESS M TO MUTE";
+	dstPoint.x = (screenWidth / 2) - (w * text.size()) / 2;
+	dstPoint.y = screenHeight - 50;
 	platform::addBuffFont(dstPoint, text);
 }
 
@@ -460,7 +516,7 @@ void Game::Init()
 	{
 		float x = i * (enemySizeX);
 		float y = 50;
-		enemies[i] = Enemy{ SPRITE_ENEMY_0, x, y };
+		invaders[i] = Invader{ SPRITE_ENEMY_0, {x, y} };
 	}
 	lastY += yOffset;
 
@@ -468,7 +524,7 @@ void Game::Init()
 	{
 		float x = i * (enemySizeX);
 		float y = lastY + yOffset;
-		enemies[i + 11] = Enemy{ SPRITE_ENEMY_1, x, y };
+		invaders[i + 11] = Invader{ SPRITE_ENEMY_1, {x, y} };
 	}
 
 	lastY += yOffset;
@@ -476,7 +532,7 @@ void Game::Init()
 	{
 		float x = i * (enemySizeX);
 		float y = lastY + yOffset;
-		enemies[i + 22] = Enemy{ SPRITE_ENEMY_1, x, y };
+		invaders[i + 22] = Invader{ SPRITE_ENEMY_1, {x, y} };
 	}
 
 	lastY += yOffset;
@@ -484,7 +540,7 @@ void Game::Init()
 	{
 		float x = i * (enemySizeX);
 		float y = lastY + yOffset;
-		enemies[i + 33] = Enemy{ SPRITE_ENEMY_2, x, y };
+		invaders[i + 33] = Invader{ SPRITE_ENEMY_2, {x, y} };
 	}
 
 	lastY += yOffset;
@@ -492,16 +548,22 @@ void Game::Init()
 	{
 		float x = i * (enemySizeX);
 		float y = lastY + yOffset;
-		enemies[i + 44] = Enemy{ SPRITE_ENEMY_2, x, y };
+		invaders[i + 44] = Invader{ SPRITE_ENEMY_2, {x, y} };
+		invaderCanShoot[i + 44] = true;
 	}
 
-	float obstacleXOffset = 0;
+	float obstacleXOffset = 50;
 
 	for (int i = 0; i < obstacles.size(); i++)
 	{
-		obstacles[i] = Obstacle{ i * 200 + obstacleXOffset, (float)screenHeight - 150 };
+		obstacles[i] = Obstacle{ {i * 200 + obstacleXOffset, (float)screenHeight - 150} };
 	}
 
 	score = 0;
 	lifes = 3;
+
+	player.screenWidth = screenWidth;
+	player.screenHeight = screenHeight;
+	player.SetPos(Point2D{ screenWidth / 2 - player.GetW(), static_cast<float>(screenHeight) - 100 });
+	invaders[ufoIdx] = Invader{ SPRITE_ENEMY_UFO, { -1, -1 } };
 }

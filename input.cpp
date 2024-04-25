@@ -25,3 +25,9 @@ void clearInputKeys()
 		key.isUp = false;
 	}
 }
+
+void clearKey(int code)
+{
+	inputKeys[code].isDown = false;
+	inputKeys[code].isUp = false;
+}

@@ -13,6 +13,8 @@
 
 namespace platform
 {
+	bool muteSound = false;
+
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	SDL_Texture* texture;
@@ -26,7 +28,7 @@ namespace platform
 		return SDL_GetTicks64();
 	}
 
-	void createWindow(int width, int height)
+	void createWindow(const int width, const int height)
 	{
 		assert(SDL_Init(SDL_INIT_AUDIO) >= 0 && "Unable to init SDL");
 		assert(Mix_OpenAudio(MIX_DEFAULT_FREQUENCY, MIX_DEFAULT_FORMAT, MIX_DEFAULT_CHANNELS, 4096) >= 0 && "Unable to open audio device");
@@ -46,17 +48,7 @@ namespace platform
 		SDL_FreeSurface(surface);
 	}
 
-	void exit()
-	{
-		Mix_FreeChunk(fireWaveSound);
-		Mix_FreeChunk(invaderKilledSound);
-		Mix_CloseAudio();
-		Mix_Quit();
-		SDL_DestroyTexture(texture);
-		SDL_DestroyRenderer(renderer);
-		SDL_DestroyWindow(window);
-		SDL_Quit();
-	}
+	void exit();
 
 	void updateWindow()
 	{
@@ -75,6 +67,7 @@ namespace platform
 				case SDLK_RIGHT: keyDown(KEY_CODE_RIGHT); break;
 				case SDLK_SPACE: keyDown(KEY_CODE_SPACE); break;
 				case SDLK_ESCAPE: keyDown(KEY_CODE_ESCAPE); break;
+				case SDLK_m: keyDown(KEY_CODE_M); break;
 				}
 			}
 			else if (event.type == SDL_KEYUP)
@@ -85,6 +78,7 @@ namespace platform
 				case SDLK_RIGHT: keyUp(KEY_CODE_RIGHT); break;
 				case SDLK_SPACE: keyUp(KEY_CODE_SPACE); break;
 				case SDLK_ESCAPE: keyUp(KEY_CODE_ESCAPE); break;
+				case SDLK_m: keyUp(KEY_CODE_M); break;
 				}
 			}
 		}
@@ -170,7 +164,7 @@ namespace platform
 		}
 	}
 
-	void addBuffRect(const Rect& rect, uint32_t rgb)
+	void addBuffRect(const Rect& rect, uint32_t rgb, const bool filled)
 	{
 		auto r = (rgb >> 24);
 		auto g = (rgb >> 16) & 0xff;
@@ -178,7 +172,15 @@ namespace platform
 		SDL_SetRenderDrawColor(renderer, r, g, b, 1);
 
 		SDL_Rect src{ rect.x, rect.y, rect.w, rect.h };
-		SDL_RenderFillRect(renderer, &src);
+
+		if (filled)
+		{
+			SDL_RenderFillRect(renderer, &src);
+		}
+		else
+		{
+			SDL_RenderDrawRect(renderer, &src);
+		}		
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 	}
 
@@ -190,21 +192,59 @@ namespace platform
 	void renderBuff()
 	{
 		SDL_RenderPresent(renderer);
-	}
+	}	
 
-	void playSound(int soundId)
+	void playSound(const int soundId, const int channelId)
 	{
+		if (muteSound)
+		{
+			return;
+		}
+
 		auto path = getSoundPath(soundId);
 		assert(path != "", "Sound not found");
 
-		auto chunk = mixChunks[soundId];
-		if (chunk == nullptr)
+		if (mixChunks[soundId] == nullptr)
 		{
 			auto wave = Mix_LoadWAV(path.c_str());
 			assert(wave != nullptr, "Unable to load: " + path);
 			mixChunks[soundId] = wave;
-
+		}		
+		if (Mix_Playing(channelId) != 1)
+		{
+			Mix_PlayChannel(channelId, mixChunks[soundId], 0);
 		}
-		Mix_PlayChannel(0, chunk, 0);
+	}
+
+	void stopChannel(const int channelId)
+	{
+		Mix_HaltChannel(channelId);;
+	}
+
+	void stopAllSounds() 
+	{
+		Mix_HaltChannel(-1);
+	}
+
+	void toggleSound()
+	{
+		muteSound = !muteSound;
+		if (muteSound)
+		{
+			stopAllSounds();
+		}
+	}
+
+	void exit()
+	{
+		stopAllSounds();
+		Mix_FreeChunk(fireWaveSound);
+		Mix_FreeChunk(invaderKilledSound);
+		Mix_CloseAudio();
+		Mix_Quit();
+		SDL_DestroyTexture(texture);
+		SDL_DestroyRenderer(renderer);
+		SDL_DestroyWindow(window);
+		SDL_Quit();
 	}
 };
