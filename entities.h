@@ -6,7 +6,8 @@
 #include "util.h"
 #include "asset.h"
 
-const float projectileSpeed = 4.5f;
+const float enemyProjectileSpeed = 4.5f;
+const float playerProjectileSpeed = 7.5f;
 
 struct Sprite
 {
@@ -53,10 +54,9 @@ struct Entity
 		switch (spriteType)
 		{
 		case SPRITE_ENEMY_0: sprite = { spriteEnemy0, spriteShipWidth, spriteShipHeight }; break;
-
-
 		case SPRITE_ENEMY_1: sprite = { spriteEnemy1, spriteShipWidth, spriteShipHeight }; break;
 		case SPRITE_ENEMY_2: sprite = { spriteEnemy2, spriteShipWidth, spriteShipHeight }; break;
+		case SPRITE_ENEMY_UFO: sprite = { spriteEnemyUfo, spriteShipWidth, spriteShipHeight }; break;
 		case SPRITE_PLAYER: sprite = { spritePlayer, spriteShipWidth, spriteShipHeight }; break;
 		case SPRITE_PROJECTILE_TYPE_0: sprite = { spriteProjectile0, spriteProjectileWidth, spriteProjectileHeight }; break;
 		case SPRITE_PROJECTILE_TYPE_1: sprite = { spriteProjectile1, spriteProjectileWidth, spriteProjectileHeight }; break;
@@ -117,6 +117,10 @@ struct Enemy : Entity
 			score = 10;
 			projectileType = SPRITE_PROJECTILE_TYPE_2;
 			break;
+		case SPRITE_ENEMY_UFO:
+			score = 300;
+			projectileType = -1;
+			break;
 		}
 	}
 
@@ -130,6 +134,11 @@ struct Enemy : Entity
 	{
 		x += 15;
 		sprite.NextFrame();
+	}
+
+	void MoveRight2()
+	{
+		x += 2.1f;
 	}
 
 	void MoveDown()
@@ -193,11 +202,11 @@ struct Projectile : Entity
 	{
 		if (type == SPRITE_PROJECTILE_TYPE_PLAYER)
 		{
-			y -= projectileSpeed;
+			y -= playerProjectileSpeed;
 		}
 		else
 		{
-			y += projectileSpeed;
+			y += enemyProjectileSpeed;
 		}
 
 		sprite.NextFrame();
@@ -258,6 +267,56 @@ struct Player : Entity
 		}
 		sprite.NextFrame();
 	}
+
+	void Die()
+	{
+		if (death)
+		{
+			return;
+		}
+
+		isDying = true;
+		dieStartMili = platform::getTicks();
+		SetSprite(spritePlayerDestroy, spriteShipWidth, spriteShipHeight);
+	}
+
+	[[nodiscard]] bool IsDying() const { return isDying; }
+
+	void Update()
+	{
+		if (death)
+		{
+			death = false;
+			x = (800.0f / 2);
+			y = (640.0f - 100);
+			sprite.SetSprite(spritePlayer, spriteShipWidth, spriteShipHeight);
+		}
+
+		if (isDying)
+		{
+			auto ticks = platform::getTicks();
+			if (dieLastFrame + ticks >= dieFrameSpeed)
+			{
+				sprite.NextFrame();
+				dieLastFrame = ticks;
+			}
+
+			if (dieStartMili + 350 <= platform::getTicks())
+			{
+				std::cout << "Died" << std::endl;
+				isDying = false;
+				death = true;
+				Destroy();
+			}
+		}
+	}
+private:
+	bool isDying = false;
+	bool death = false;
+	uint64_t dieStartMili = 0;
+
+	int dieFrameSpeed = 250;
+	int dieLastFrame = 0;
 };
 
 struct Obstacle : Entity
@@ -265,16 +324,67 @@ struct Obstacle : Entity
 	Obstacle() : Obstacle(-1, -1) {}
 	Obstacle(float x, float y) : Entity(SPRITE_OBSTACLE, x, y) {}
 
-	void ReceiveProjectile()
+	void ReceiveProjectile(const Point2D impactCoord)
 	{
 		std::cout << "Impact" << std::endl;
 		life -= 20;
+		impactCoords.emplace_back(impactCoord);
 		if (life == 0)
 		{
 			Destroy();
 		}
 	}
 
+	Rect GetCollider() const
+	{
+		auto c = Entity::GetCollider();
+		if (collider.x >= 0 && collider.y >= 0)
+		{
+			c.x = collider.x;
+			c.y = collider.y;
+		}
+		return c;
+	}
+
+	void Render()
+	{
+		if (!Entity::IsAlive())
+		{
+			return;
+		}
+
+		auto texture = Entity::GetTexture();
+		Rect pos{ Entity::GetPosX(), Entity::GetPosY(), Entity::GetW(), Entity::GetH() };
+		platform::addBuffTexture(texture, pos);
+		platform::addBuffRect(Entity::GetCollider(), 0xff000000, false);
+
+		uint32_t white = 0xffffffff;
+		uint32_t black = 0;
+		uint32_t color = black;
+
+		for (const auto& i : impactCoords)
+		{
+			// Vertical 		
+			platform::addBuffRect({ i.x, i.y, 10, 10 }, color, true);
+			platform::addBuffRect({ i.x, i.y + 10, 10, 10 }, color, true);
+
+			// Horizontal 			
+			platform::addBuffRect({ i.x + 10, i.y, 10, 10 }, color, true);
+			platform::addBuffRect({ i.x - 10, i.y, 10, 10 }, color, true);
+
+			if (x + 10 >= collider.x)
+			{
+				collider.x = x + 10;
+			}
+
+			if (y + 10 >= collider.y)
+			{
+				collider.y = y + 10;
+			}
+		}
+	}
 private:
 	int life = 100;
+	std::vector<Point2D> impactCoords;
+	Rect collider;
 };

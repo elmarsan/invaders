@@ -12,7 +12,7 @@ namespace platform
 	void playSound(int soundId);
 	void addBuffTexture(const Rect& srcRect, const Rect& dstRect);
 	void addBuffFont(const Point2D& dstPoint, const std::string text);
-	void addBuffRect(const Rect& rect, uint32_t rgb);
+	void addBuffRect(const Rect& rect, uint32_t rgb, bool filled);
 	void clearBuff();
 	void renderBuff();
 	void exit();

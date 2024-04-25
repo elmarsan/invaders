@@ -170,7 +170,7 @@ namespace platform
 		}
 	}
 
-	void addBuffRect(const Rect& rect, uint32_t rgb)
+	void addBuffRect(const Rect& rect, uint32_t rgb, bool filled)
 	{
 		auto r = (rgb >> 24);
 		auto g = (rgb >> 16) & 0xff;
@@ -178,7 +178,15 @@ namespace platform
 		SDL_SetRenderDrawColor(renderer, r, g, b, 1);
 
 		SDL_Rect src{ rect.x, rect.y, rect.w, rect.h };
-		SDL_RenderFillRect(renderer, &src);
+
+		if (filled)
+		{
+			SDL_RenderFillRect(renderer, &src);
+		}
+		else
+		{
+			SDL_RenderDrawRect(renderer, &src);
+		}		
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 	}
 
@@ -204,7 +212,10 @@ namespace platform
 			assert(wave != nullptr, "Unable to load: " + path);
 			mixChunks[soundId] = wave;
 
+		}		
+		if (Mix_Playing(0) != 1)
+		{
+			Mix_PlayChannel(0, chunk, 0);
 		}
-		Mix_PlayChannel(0, chunk, 0);
 	}
 };

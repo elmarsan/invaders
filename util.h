@@ -40,6 +40,11 @@ struct Rect
 		}
 		return Rect{};
 	}
+
+	[[nodiscard]] bool IsZero() const
+	{
+		return x == 0 && y == 0 && w == 0 && h == 0;
+	}
 };
 
 struct Point2D
