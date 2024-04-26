@@ -5,7 +5,6 @@
 #include "util.h"
 #include "asset.h"
 
-#include <iostream>
 #include <random>
 
 bool running = true;
@@ -88,9 +87,14 @@ void Game::HandleInput()
 			enableSpaceKey = true;
 		}
 	}
-	if (isKeyDown(KEY_CODE_ESCAPE))
+	if (isKeyDown(KEY_CODE_ESCAPE) && enableEscapeKey)
 	{
 		paused = !paused;
+		enableEscapeKey = false;
+	}
+	else if (isKeyUp(KEY_CODE_ESCAPE) && !enableEscapeKey)
+	{
+		enableEscapeKey = true;
 	}
 	if (isKeyDown(KEY_CODE_M) && enableMKey)
 	{
@@ -153,10 +157,23 @@ void Game::Update()
 	// Update invaders pos and fire if can
 	else
 	{
+		int activeCount = 0;
+
 		// Update positions
 		for (auto& i : invaders)
 		{
 			i.Update();
+
+			if (i.IsActive())
+			{
+				activeCount++;
+			}
+		}
+
+		// Win
+		if (activeCount == 0)
+		{
+			state = State::MENU;
 		}
 
 		// Find empty projectile idxs
@@ -459,16 +476,6 @@ void Game::RenderMenu()
 	Point2D dstPoint{ x, y };
 	platform::addBuffFont(dstPoint, text);
 
-	text = "PRESS SPACE TO PLAY";
-	dstPoint.x = (screenWidth / 2) - (w * text.size()) / 2;
-	dstPoint.y += h * 2;
-	platform::addBuffFont(dstPoint, text);	
-
-	text = "*SCORE TABLE*";
-	dstPoint.x = (screenWidth / 2) - (w * text.size()) / 2 - 30;
-	dstPoint.y += 120;
-	platform::addBuffFont(dstPoint, text);
-
 	text = "= 300 POINTS";
 	dstPoint.x = (screenWidth / 2) - (w * text.size()) / 2;
 	dstPoint.y += h * 2.2;
@@ -477,93 +484,73 @@ void Game::RenderMenu()
 	platform::addBuffTexture(srcRect, dstRect);
 	platform::addBuffFont(dstPoint, text);
 
-	dstPoint.y += h * 2.2;
-	text = "= 30 POINTS  ";
-	srcRect = { spriteEnemy0[0].x, spriteEnemy0[0].y, spriteShipWidth, spriteShipHeight };
-	dstRect = { dstPoint.x - 60, dstPoint.y, spriteShipWidth * spriteScaleX, spriteShipHeight * spriteScaleY };
-	platform::addBuffTexture(srcRect, dstRect);
-	platform::addBuffFont(dstPoint, text);
+	static std::vector<std::string> scores{
+		"= 30 POINTS  ",
+		"= 20 POINTS  ",
+		"= 10 POINTS  "
+	};
+	for (const auto& t : scores)
+	{
+		dstPoint.y += h * 2.2;
+		srcRect = { spriteEnemy0[0].x, spriteEnemy0[0].y, spriteShipWidth, spriteShipHeight };
+		dstRect = { dstPoint.x - 60, dstPoint.y, spriteShipWidth * spriteScaleX, spriteShipHeight * spriteScaleY };
+		platform::addBuffTexture(srcRect, dstRect);
+		platform::addBuffFont(dstPoint, t);
+	}
+	
+	static std::vector<std::string> controls{
+		"PRESS SPACE TO FIRE",
+		"PRESS M TO MUTE",
+		"PRESS ESC TO PAUSE",
+	};
 
-	dstPoint.y += h * 2.2;
-	text = "= 20 POINTS  ";
-	srcRect = { spriteEnemy1[0].x, spriteEnemy1[0].y, spriteShipWidth, spriteShipHeight };
-	dstRect = { dstPoint.x - 60, dstPoint.y, spriteShipWidth * spriteScaleX, spriteShipHeight * spriteScaleY };
-	platform::addBuffTexture(srcRect, dstRect);
-	platform::addBuffFont(dstPoint, text);
-
-	dstPoint.y += h * 2.2;
-	text = "= 10 POINTS  ";
-	srcRect = { spriteEnemy2[0].x, spriteEnemy2[0].y, spriteShipWidth, spriteShipHeight };
-	dstRect = { dstPoint.x - 60, dstPoint.y, spriteShipWidth * spriteScaleX, spriteShipHeight * spriteScaleY };
-	platform::addBuffTexture(srcRect, dstRect);
-	platform::addBuffFont(dstPoint, text);	
-
-	text = "PRESS M TO MUTE";
-	dstPoint.x = (screenWidth / 2) - (w * text.size()) / 2;
-	dstPoint.y = screenHeight - 50;
-	platform::addBuffFont(dstPoint, text);
+	dstPoint.x = (screenWidth / 2) - (w * controls[0].size()) / 2;
+	dstPoint.y += h * 2 + 100;
+	for (const auto& t : controls)
+	{
+		platform::addBuffFont(dstPoint, t);
+		dstPoint.y += 40;
+	}
 }
 
 void Game::Init()
-{
-	// Check where all constants go
-	float enemySizeX = 16 * spriteScaleX;
+{	
+	float enemySizeX = spriteShipWidth * spriteScaleX;	
+	float y = 50;
 
-	float lastY = 0;
-	float yOffset = 50;
-
-	for (int i = 0; i < 11; i++)
+	int enemyType = SPRITE_ENEMY_0;
+	for (int i = 0; i < 5; i++)
 	{
-		float x = i * (enemySizeX);
-		float y = 50;
-		invaders[i] = Invader{ SPRITE_ENEMY_0, {x, y} };
-	}
-	lastY += yOffset;
+		if (i == 1 || i == 2)
+		{
+			enemyType = SPRITE_ENEMY_1;
+		}
+		else if (i == 3 || i == 4)
+		{
+			enemyType = SPRITE_ENEMY_2;
+		}
 
-	for (int i = 0; i < 11; i++)
-	{
-		float x = i * (enemySizeX);
-		float y = lastY + yOffset;
-		invaders[i + 11] = Invader{ SPRITE_ENEMY_1, {x, y} };
+		for (int j = 0; j < 11; j++)
+		{
+			int idx = j + i * 11;			
+			invaders[idx] = Invader{ enemyType, {j * (enemySizeX), y} };			
+			if (idx >= 44)
+			{
+				invaderCanShoot[idx] = true;
+			}
+		}		
+		y += 50;
 	}
-
-	lastY += yOffset;
-	for (int i = 0; i < 11; i++)
-	{
-		float x = i * (enemySizeX);
-		float y = lastY + yOffset;
-		invaders[i + 22] = Invader{ SPRITE_ENEMY_1, {x, y} };
-	}
-
-	lastY += yOffset;
-	for (int i = 0; i < 11; i++)
-	{
-		float x = i * (enemySizeX);
-		float y = lastY + yOffset;
-		invaders[i + 33] = Invader{ SPRITE_ENEMY_2, {x, y} };
-	}
-
-	lastY += yOffset;
-	for (int i = 0; i < 11; i++)
-	{
-		float x = i * (enemySizeX);
-		float y = lastY + yOffset;
-		invaders[i + 44] = Invader{ SPRITE_ENEMY_2, {x, y} };
-		invaderCanShoot[i + 44] = true;
-	}
-
-	float obstacleXOffset = 50;
 
 	for (int i = 0; i < obstacles.size(); i++)
 	{
-		obstacles[i] = Obstacle{ {i * 200 + obstacleXOffset, (float)screenHeight - 150} };
+		obstacles[i] = Obstacle{ {i * 200.0f + 50.0f, screenHeight - 150.0f} };
 	}
 
 	score = 0;
 	lifes = 3;
-
 	player.screenWidth = screenWidth;
 	player.screenHeight = screenHeight;
-	player.SetPos(Point2D{ screenWidth / 2 - player.GetW(), static_cast<float>(screenHeight) - 100 });
+	player.SetPos(Point2D{ screenWidth / 2 - player.GetW(), static_cast<float>(screenHeight) - 100.0f });
 	invaders[ufoIdx] = Invader{ SPRITE_ENEMY_UFO, { -1, -1 } };
 }

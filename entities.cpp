@@ -2,8 +2,6 @@
 #include "platform.h"
 #include "audio.h"
 
-#include <iostream>
-
 Entity::Entity(int type, Point2D coord) : type(type), coord(coord)
 {
 	switch (type)

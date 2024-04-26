@@ -28,12 +28,11 @@ private:
 	void RenderPauseMenu();
 	void RenderMenu();
 	void CheckCollisions();
-
 	void Init();
 
 	[[nodiscard]] bool HasToSwitchInvaderDir();
-	void InvaderFire(const int idx, const int projIdx);
 
+	void InvaderFire(const int idx, const int projIdx);
 	void DestroyInvader(const int idx);
 
 private:
@@ -54,4 +53,5 @@ private:
 	// Following keys have to be release in order to trigger their event again.
 	bool enableSpaceKey = true;
 	bool enableMKey = true;
+	bool enableEscapeKey = true;
 };
