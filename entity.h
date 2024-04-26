@@ -1,13 +1,7 @@
 #pragma once
+
 #include "asset.h"
 #include "platform.h"
-
-// TODO: move to asset.h
-enum
-{
-	ANIMATION_INVADER_DESTROY,
-	ANIMATION_PLAYER_DESTROY,
-};
 
 struct EntityV2
 {
@@ -86,17 +80,22 @@ struct EntityV2
 		}
 	}
 
-	void SetSprite(const int animationId)
+	void SetSprite(const int spriteId)
 	{
-		switch (animationId)
+		switch (spriteId)
 		{
-		case ANIMATION_INVADER_DESTROY:
+		case SPRITE_DESTROY_ENEMY:
 			spriteFrames = spriteDestroyEnemy;
 			spriteSize = { spriteShipWidth, spriteShipHeight };
 			spriteFrameDelay = 300;
 			break;
-		case ANIMATION_PLAYER_DESTROY:
+		case SPRITE_DESTROY_PLAYER:
 			spriteFrames = spritePlayerDestroy;
+			spriteSize = { spriteShipWidth, spriteShipHeight };
+			spriteFrameDelay = 100;
+			break;
+		case SPRITE_PLAYER:
+			spriteFrames = spritePlayer;
 			spriteSize = { spriteShipWidth, spriteShipHeight };
 			spriteFrameDelay = 300;
 			break;
@@ -141,4 +140,14 @@ private:
 protected:
 	int type;
 	Point2D coord;
+};
+
+enum class ShipState
+{
+	IDLE,
+	MOVE_DOWN,
+	MOVE_RIGHT,
+	MOVE_LEFT,
+	DESTROYING,
+	DESTROYED
 };

@@ -43,32 +43,32 @@ void Game::Run()
 
 void Game::HandleInput()
 {
-	if (stage == Stage::MENU)
+	if (state == State::MENU)
 	{
 		if (isKeyDown(KEY_CODE_SPACE))
 		{
-			stage = Stage::PLAYING;
+			state = State::PLAYING;
 			clearInputKeys();
 			return;
 		}
 	}
-	if (stage == Stage::PLAYING)
+	if (state == State::PLAYING)
 	{
-		if (isKeyDown(KEY_CODE_LEFT) && playerv2.GetState() != PlayerState::MOVE_LEFT)
+		if (isKeyDown(KEY_CODE_LEFT) && player.GetState() != ShipState::MOVE_LEFT)
 		{
-			playerv2.SetState(PlayerState::MOVE_LEFT);
+			player.SetState(ShipState::MOVE_LEFT);
 		}
-		else if (isKeyUp(KEY_CODE_LEFT) && playerv2.GetState() == PlayerState::MOVE_LEFT)
+		else if (isKeyUp(KEY_CODE_LEFT) && player.GetState() == ShipState::MOVE_LEFT)
 		{
-			playerv2.SetState(PlayerState::IDLE);
+			player.SetState(ShipState::IDLE);
 		}
-		if (isKeyDown(KEY_CODE_RIGHT) && playerv2.GetState() != PlayerState::MOVE_RIGHT)
+		if (isKeyDown(KEY_CODE_RIGHT) && player.GetState() != ShipState::MOVE_RIGHT)
 		{
-			playerv2.SetState(PlayerState::MOVE_RIGHT);
+			player.SetState(ShipState::MOVE_RIGHT);
 		}
-		else if (isKeyUp(KEY_CODE_RIGHT) && playerv2.GetState() == PlayerState::MOVE_RIGHT)
+		else if (isKeyUp(KEY_CODE_RIGHT) && player.GetState() == ShipState::MOVE_RIGHT)
 		{
-			playerv2.SetState(PlayerState::IDLE);
+			player.SetState(ShipState::IDLE);
 		}
 
 		if (isKeyDown(KEY_CODE_SPACE))
@@ -77,35 +77,11 @@ void Game::HandleInput()
 			{
 				std::cout << "Fire" << std::endl;
 				platform::playSound(SOUND_PLAYER_FIRE);
-				Point2D coord = { playerv2.GetX() + player.GetW() / 2.2f, (playerv2.GetY() - playerv2.GetH()) - 2 };
-				projectiles[0] = ProjectileV2{ SPRITE_PROJECTILE_TYPE_PLAYER, coord };
+				Point2D coord = { player.GetX() + player.GetW() / 2.2f, (player.GetY() - player.GetH()) - 2 };
+				projectiles[0] = ProjectileV2{ SPRITE_PROJECTILE_TYPE_PLAYER, coord, static_cast<float>(screenHeight) };
 
 			}
 		}
-		// else if (isKeyUp(KEY_CODE_RIGHT) && playerv2.GetState() == PlayerState::MOVE_RIGHT)
-		// {
-		// 	playerv2.SetState(PlayerState::IDLE);
-		// }
-
-		//std::cout << "Playing" << std::endl;
-		//if (isKeyDown(KEY_CODE_LEFT))
-		//{
-		//	std::cout << "Move left" << std::endl;
-		//	// player.MoveLeft();
-		//	playerv2.SetState(PlayerState::MOVE_LEFT);
-		//} 
-		//if (isKeyDown(KEY_CODE_RIGHT))
-		//{
-		//	// player.MoveRight();
-		//}
-		//if (isKeyDown(KEY_CODE_SPACE))
-		//{
-		//	// if (!playerProjectile.IsAlive())
-		//	// {
-		//	// 	platform::playSound(SOUND_PLAYER_FIRE);
-		//	// 	playerProjectile.SetPos(player.GetPosX() + player.GetW() / 2.2f, (player.GetPosY() - player.GetH()) - 2);
-		//	// }
-		//}
 	}
 	if (isKeyDown(KEY_CODE_ESCAPE))
 	{
@@ -115,30 +91,48 @@ void Game::HandleInput()
 
 void Game::Update()
 {
-	if (paused || stage == Stage::MENU)
+	if (paused || state == State::MENU)
 	{
 		return;
 	}
 
-	if (stage == Stage::END_GAME)
+	switch (state)
 	{
+	case State::END_GAME:
 		Init();
-		stage = Stage::MENU;
+		state = State::MENU;
+		break;
+	case State::PLAYER_DESTROYED:
+		if (player.GetState() == ShipState::DESTROYING)
+		{
+			player.Update();
+			return;
+		}
+		else if (player.GetState() == ShipState::DESTROYED && lifes > 0)
+		{
+			state = State::PLAYING;
+			return;
+		}
+		else if (player.GetState() == ShipState::DESTROYED && lifes == 0)
+		{
+			state = State::END_GAME;
+			return;
+		}
 	}
 
-	playerv2.Update();
+	player.Update();
 
 	for (auto& p : projectiles)
-	{
+	{		
 		p.Update();
 	}
-	
+
 	if (Game::HasToSwitchInvaderDir())
 	{
 		for (auto& i : invaders)
-		{			
+		{
 			i.SwitchDirection();
-			i.Update();		
+			i.Update();
 		}
 	}
 	else
@@ -162,25 +156,33 @@ void Game::Update()
 			if (invaderCanShoot[i] && !projectiles[1].IsActive())
 			{
 				// Player is in front
-				if (playerv2.GetX() >= invaders[i].GetX() - 30 && playerv2.GetX() <= invaders[i].GetX() + 30)
+				if (player.GetX() >= invaders[i].GetX() - 30 && player.GetX() <= invaders[i].GetX() + 30)
 				{
-					Point2D coord = { invaders[i].GetX() + invaders[i].GetW() / 2.2f, (invaders[i].GetY() - invaders[i].GetH()) - 2 };
+					Point2D coord = { invaders[i].GetX() + invaders[i].GetW() / 2.2f, (invaders[i].GetY() + invaders[i].GetH()) };
 					switch (invaders[i].GetType())
 					{
 					case SPRITE_ENEMY_0:
-						projectiles[1] = ProjectileV2{ SPRITE_PROJECTILE_TYPE_0, coord };
+						projectiles[1] = ProjectileV2{ SPRITE_PROJECTILE_TYPE_0, coord, static_cast<float>(screenHeight) };
 						break;
 					case SPRITE_ENEMY_1:
-						projectiles[1] = ProjectileV2{ SPRITE_PROJECTILE_TYPE_1, coord };
+						projectiles[1] = ProjectileV2{ SPRITE_PROJECTILE_TYPE_1, coord, static_cast<float>(screenHeight) };
 						break;
 					case SPRITE_ENEMY_2:
-						projectiles[1] = ProjectileV2{ SPRITE_PROJECTILE_TYPE_2, coord };
+						projectiles[1] = ProjectileV2{ SPRITE_PROJECTILE_TYPE_2, coord, static_cast<float>(screenHeight) };
 						break;
 					}
 				}
 			}
 		}
 	}
+
+	// Ufo
+	if (!invaders[ufoIdx].IsActive() && !ufoAppeared)
+	{
+		invaders[ufoIdx].SetPos({ 0, 20 });
+	}
+
+	CheckCollisions();
 }
 
 [[nodiscard]] bool Game::HasToSwitchInvaderDir()
@@ -188,147 +190,17 @@ void Game::Update()
 	for (const auto& i : invaders)
 	{
 		// Some invader reached X left limit
-		if (i.GetX() <= 0 && i.GetState() == InvaderState::MOVE_LEFT)
+		if (i.GetX() <= 0 && i.GetState() == ShipState::MOVE_LEFT)
 		{
 			return true;
 		}
 		// Some invader reached X right limit
-		else if (i.GetX() + i.GetW() >= screenWidth && i.GetState() == InvaderState::MOVE_RIGHT)
+		else if (i.GetX() + i.GetW() >= screenWidth && i.GetState() == ShipState::MOVE_RIGHT)
 		{
 			return true;
 		}
 	}
 	return false;
-}
-
-void Game::OldUpdate()
-{
-	if (paused || stage == Stage::MENU)
-	{
-		return;
-	}
-
-	if (stage == Stage::END_GAME)
-	{
-		Init();
-		stage = Stage::MENU;
-	}
-
-	CheckCollisions();
-
-	player.Update();
-
-	for (auto& e : enemies)
-	{
-		e.Update();
-	}
-
-	// Update player projectile position
-	if (playerProjectile.IsAlive())
-	{
-		playerProjectile.UpdatePos();
-	}
-	// Update enemy projectiles
-	for (auto& proj : enemyProjectiles)
-	{
-		if (proj.IsAlive())
-		{
-			proj.UpdatePos();
-		}
-	}
-
-	uint64_t ticks = platform::getTicks();
-	// Lateral movement
-	if (ticks - enemyLastActionTick > enemyActionDelay)
-	{
-		// If any enemy it's on x limits (0 or 800) it changes the direction to the opposite side.
-		shipEnemyMoveDown = false;
-		for (const auto& e : enemies)
-		{
-			if (!e.IsAlive())
-			{
-				continue;
-			}
-
-			// MOVE TO RIGHT
-			if (e.GetPosX() - 15 < 0)
-			{
-				shipEnemyMove = SHIP_ENEMY_MOVE_RIGHT;
-				shipEnemyMoveDown = true;
-				break;
-			}
-			// MOVE TO LEFT
-			else if (e.GetPosX() + 15 > screenWidth - e.GetW())
-			{
-				shipEnemyMove = SHIP_ENEMY_MOVE_LEFT;
-				shipEnemyMoveDown = true;
-				break;
-			}
-		}
-
-		// Enemy firing		
-		auto x = GetCanShootEnemyIds();
-		for (auto it = x.rbegin(); it != x.rend(); ++it) {
-			const auto& enemy = enemies[*it];
-			if (player.GetPosX() >= enemy.GetPosX() - 30 && player.GetPosX() <= enemy.GetPosX() + 30)
-			{
-				// find empty projectile
-				for (auto& proj : enemyProjectiles)
-				{
-					if (!proj.IsAlive())
-					{
-						proj = Projectile{ enemy.GetProjectileType(), enemy.GetPosX(), enemy.GetPosY() };
-						break;
-					}
-				}
-			}
-		}
-
-		for (auto& e : enemies)
-		{
-			if (!e.IsAlive())
-			{
-				continue;
-			}
-			if (shipEnemyMoveDown)
-			{
-				e.MoveDown();
-			}
-			if (shipEnemyMove == SHIP_ENEMY_MOVE_LEFT)
-			{
-				e.MoveLeft();
-			}
-			else if (shipEnemyMove == SHIP_ENEMY_MOVE_RIGHT)
-			{
-				e.MoveRight();
-			}
-		}
-
-		enemyLastActionTick = ticks;
-	}
-
-	// Spawn ufo
-	// if (std::rand() / ((RAND_MAX + 1u) / 20) == 20 && !enemyUfo.IsAlive() && !ufoAppeared)	
-	if (!enemyUfo.IsAlive() && !ufoAppeared)
-	{
-		enemyUfo = Enemy{ SPRITE_ENEMY_UFO, 0, 20 };
-		ufoAppeared = true;
-		std::cout << "Spaw ufo" << std::endl;
-
-		// platform::playSound(SOUND_UFO);
-	}
-	// Ufo logic
-	if (enemyUfo.IsAlive())
-	{
-		enemyUfo.Update();
-		enemyUfo.MoveRight2();
-		platform::playSound(SOUND_UFO);
-
-		if (enemyUfo.GetPosX() >= spriteShipWidth + screenWidth)
-		{
-			enemyUfo.Destroy();
-		}
-	}
 }
 
 void Game::Render()
@@ -337,21 +209,21 @@ void Game::Render()
 	{
 		RenderPauseMenu();
 	}
-	else if (stage == Stage::MENU)
+	else if (state == State::MENU)
 	{
 		RenderMenu();
 	}
 	else
 	{
-		playerv2.Render();
+		player.Render();
 
 		RenderScore();
 		RenderLifes();
 
-		//for (auto& o : obstacles)
-		//{
-		//	o.Render();
-		//}
+		for (auto& o : obstacles)
+		{
+			o.Render();
+		}
 
 		for (const auto& p : projectiles)
 		{
@@ -362,23 +234,20 @@ void Game::Render()
 		{
 			i.Render();
 		}
-
-		//RenderObstacles();
-		//RenderProjectiles();
-		//RenderShips();
+		
 		Rect bottomBar{ 0, screenHeight - 50, screenWidth, 5 };
 		platform::addBuffRect(bottomBar, 0xff0000, true);
 
 
 		/////////////////// DEBUG ///////////////////
-		for (const auto& pair : invaderCanShoot)
-		{
-			if (pair.second == true)
-			{				
-				Rect collider = invaders[pair.first].GetCollider();
-				platform::addBuffRect(collider, 0xff000000, false);
-			}
-		}
+		//for (const auto& pair : invaderCanShoot)
+		//{
+		//	if (pair.second == true)
+		//	{
+		//		Rect collider = invaders[pair.first].GetCollider();
+		//		platform::addBuffRect(collider, 0xff000000, false);
+		//	}
+		//}
 		/////////////////////////////////////////////
 	}
 
@@ -386,147 +255,51 @@ void Game::Render()
 	platform::clearBuff();
 }
 
-void Game::CheckCollisions()
+void Game::DestroyInvader(const int idx)
 {
-	// Check if some enemy collides with player or player projectile
-	//if (playerProjectile.IsAlive())
-	//{
-	//	for (auto& e : enemies)
-	//	{
-	//		if (!e.IsAlive())
-	//		{
-	//			continue;
-	//		}
-
-	//		if (playerProjectile.GetCollider().intersects(e.GetCollider()))
-	//		{
-	//			platform::playSound(SOUND_INVADER_DESTROYED);
-	//			std::cout << "** Enemy destroyed **" << std::endl;
-	//			e.Die();
-	//			playerProjectile.Destroy();
-	//			score += e.GetScore();
-	//			break;
-	//		}
-	//		else if (player.GetCollider().intersects(e.GetCollider()))
-	//		{
-	//			std::cout << "YOU DIE" << std::endl;
-	//			running = false;
-	//			break;
-	//		}
-	//	}
-
-	//	for (auto& o : obstacles)
-	//	{
-	//		if (!o.IsAlive())
-	//		{
-	//			continue;
-	//		}
-
-	//		Rect collision = playerProjectile.GetCollider().intersectRect(o.GetCollider());
-	//		if (!collision.IsZero())
-	//		{
-	//			o.ReceiveProjectile({ collision.x, collision.y });
-	//			playerProjectile.Destroy();
-	//			break;
-	//		}
-	//	}
-
-	//	for (auto& p : enemyProjectiles)
-	//	{
-	//		if (playerProjectile.GetCollider().intersects(p.GetCollider()))
-	//		{
-	//			p.Destroy();
-	//			playerProjectile.Destroy();
-	//			break;
-	//		}
-	//	}
-
-	//	if (enemyUfo.IsAlive())
-	//	{
-	//		if (playerProjectile.GetCollider().intersects(enemyUfo.GetCollider()))
-	//		{
-	//			std::cout << "ufo reacheeeed!" << std::endl;
-	//			enemyUfo.Die();
-	//			playerProjectile.Destroy();
-	//			score += enemyUfo.GetScore();
-	//		}
-	//	}
-	//}
-
-	//// Check if some enemy projectile collides with player or obstacles
-	//for (auto& proj : enemyProjectiles)
-	//{
-	//	if (!proj.IsAlive())
-	//	{
-	//		continue;
-	//	}
-
-	//	// Check if projectile has reached player
-	//	if (proj.GetCollider().intersects(player.GetCollider()))
-	//	{
-	//		if (--lifes == 0)
-	//		{
-	//			std::cout << "YOU DIE" << std::endl;
-	//			stage = Stage::END_GAME;
-	//		}
-	//		player.Die();
-	//		proj.Destroy();
-	//		break;
-	//	}
-
-	//	// Check if projectile collides with any obstacle
-	//	for (auto& o : obstacles)
-	//	{
-	//		if (!o.IsAlive())
-	//		{
-	//			continue;
-	//		}
-	//		Rect collision = proj.GetCollider().intersectRect(o.GetCollider());
-	//		if (!collision.IsZero())
-	//		{
-	//			o.ReceiveProjectile({ collision.x, collision.y });
-	//			proj.Destroy();
-	//			break;
-	//		}
-	//	}
-	//}
+	invaders[idx].SetState(ShipState::DESTROYING);
+	score += invaders[idx].GetScore();
+	if (idx >= 11)
+	{
+		invaderCanShoot[idx - 11] = true;
+	}
 }
 
-std::vector<int> Game::GetCanShootEnemyIds()
+void Game::CheckCollisions()
 {
-	std::vector<int> canShootEnemyIds{};
-
-	for (int i = 0; i < enemies.size(); i++)
+	for (auto& p : projectiles)
 	{
-		if (!enemies[i].IsAlive())
+		if (!p.IsActive())
 		{
 			continue;
 		}
-		if (i < 44)
+
+		auto projColl = p.GetCollider();
+		auto playerColl = player.GetCollider();
+
+		if (projColl.intersects(playerColl))
 		{
-			bool nothingInFront = true;
-			for (int j = i + 11; j < enemies.size(); j += 11)
+			--lifes;			
+			player.SetState(ShipState::DESTROYING);
+			p.Destroy();
+			state = State::PLAYER_DESTROYED;
+			return;
+		}
+
+		for (int i = 0; i < invaders.size(); i++)
+		{	
+			if (!invaders[i].IsActive())
 			{
-				if (enemies[j].IsAlive())
-				{
-					nothingInFront = false;
-					break;
-				}
+				continue;
 			}
 
-			if (nothingInFront)
-			{
-				canShootEnemyIds.push_back(i);
+			if (projColl.intersects(invaders[i].GetCollider()))
+			{				
+				p.Destroy();
+				DestroyInvader(i);
 			}
-		}
-		// Enemy is alive and it's on the last row
-		else
-		{
-			canShootEnemyIds.push_back(i);
 		}
 	}
-
-	return canShootEnemyIds;
 }
 
 void Game::RenderScore()
@@ -655,8 +428,6 @@ void Game::Init()
 	{
 		float x = i * (enemySizeX);
 		float y = 50;
-		enemies[i] = Enemy{ SPRITE_ENEMY_0, x, y };
-
 		invaders[i] = Invader{ SPRITE_ENEMY_0, {x, y} };
 	}
 	lastY += yOffset;
@@ -664,9 +435,7 @@ void Game::Init()
 	for (int i = 0; i < 11; i++)
 	{
 		float x = i * (enemySizeX);
-		float y = lastY + yOffset;
-		enemies[i + 11] = Enemy{ SPRITE_ENEMY_1, x, y };
-
+		float y = lastY + yOffset;		
 		invaders[i + 11] = Invader{ SPRITE_ENEMY_1, {x, y} };
 	}
 
@@ -674,9 +443,7 @@ void Game::Init()
 	for (int i = 0; i < 11; i++)
 	{
 		float x = i * (enemySizeX);
-		float y = lastY + yOffset;
-		enemies[i + 22] = Enemy{ SPRITE_ENEMY_1, x, y };
-
+		float y = lastY + yOffset;		
 		invaders[i + 22] = Invader{ SPRITE_ENEMY_1, {x, y} };
 	}
 
@@ -684,9 +451,7 @@ void Game::Init()
 	for (int i = 0; i < 11; i++)
 	{
 		float x = i * (enemySizeX);
-		float y = lastY + yOffset;
-		enemies[i + 33] = Enemy{ SPRITE_ENEMY_2, x, y };
-
+		float y = lastY + yOffset;		
 		invaders[i + 33] = Invader{ SPRITE_ENEMY_2, {x, y} };
 	}
 
@@ -694,9 +459,7 @@ void Game::Init()
 	for (int i = 0; i < 11; i++)
 	{
 		float x = i * (enemySizeX);
-		float y = lastY + yOffset;
-		enemies[i + 44] = Enemy{ SPRITE_ENEMY_2, x, y };
-
+		float y = lastY + yOffset;		
 		invaders[i + 44] = Invader{ SPRITE_ENEMY_2, {x, y} };
 		invaderCanShoot[i + 44] = true;
 	}
@@ -711,7 +474,9 @@ void Game::Init()
 	score = 0;
 	lifes = 3;
 
-	playerv2.screenWidth = screenWidth;
-	playerv2.screenHeight = screenHeight;
-	playerv2.SetPos(Point2D{ screenWidth / 2 - playerv2.GetW(), static_cast<float>(screenHeight) - 100 });
+	player.screenWidth = screenWidth;
+	player.screenHeight = screenHeight;
+	player.SetPos(Point2D{ screenWidth / 2 - player.GetW(), static_cast<float>(screenHeight) - 100 });
+	invaders[ufoIdx].screenWidth = screenWidth;
+	invaders[ufoIdx] = Invader{ SPRITE_ENEMY_UFO, { -1, -1 } };	
 }

@@ -10,9 +10,12 @@ enum class ProjectileState
 
 struct ProjectileV2 : EntityV2
 {
+public:	
+	int screenHeight;
+
 	ProjectileV2() : EntityV2(SPRITE_PROJECTILE_TYPE_0, { -1, -1 }) {}
 
-	ProjectileV2(int projectileType, Point2D coord) : EntityV2(projectileType, coord)
+	ProjectileV2(int projectileType, Point2D coord, float screenHeight) : EntityV2(projectileType, coord), screenHeight(screenHeight)
 	{
 		switch (projectileType)
 		{
@@ -28,11 +31,14 @@ struct ProjectileV2 : EntityV2
 	}
 
 	void Update()
-	{	
-		std::cout << coord.y << std::endl;
+	{
+		if (screenHeight > 0 && coord.y >= screenHeight)
+		{
+			EntityV2::Destroy();
+		}
 
 		if (!EntityV2::IsActive())
-		{				
+		{
 			return;
 		}
 

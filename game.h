@@ -6,21 +6,13 @@
 #include "invader.h"
 #include <unordered_map>
 
-#include <vector>
-
-enum
-{
-	SHIP_ENEMY_MOVE_RIGHT,
-	SHIP_ENEMY_MOVE_LEFT,
-	SHIP_ENEMY_MOVE_DOWN,
-};
-
-enum class Stage
+enum class State
 {
 	PLAYING,
 	PAUSED,
 	MENU,
-	END_GAME
+	END_GAME,
+	PLAYER_DESTROYED
 };
 
 class Game
@@ -31,53 +23,34 @@ public:
 	void Run();
 
 private:
-	void HandleInput();
-	void OldUpdate();
+	void HandleInput();	
 	void Update();
 	void Render();
 	void RenderScore();
-	void RenderLifes();
-	// void RenderObstacles();
-	// void RenderProjectiles();
+	void RenderLifes();	
 	void RenderShips();
 	void RenderPauseMenu();
 	void RenderMenu();
 	void CheckCollisions();
 
-	void Init();
-
-	[[nodiscard]] std::vector<int> GetCanShootEnemyIds();
+	void Init();	
 	
 	[[nodiscard]] bool HasToSwitchInvaderDir();
 
-private:
-	// *********************
-	PlayerV2 playerv2{0, 0};
+	void DestroyInvader(const int idx);
+
+private:	
+	PlayerV2 player{0, 0};
 	std::array<ProjectileV2, 2> projectiles;
-	std::array<Invader, 55> invaders;
-
-	std::unordered_map<int, bool> invaderCanShoot;
-
-	// *********************
-
-	Stage stage = Stage::MENU;	
-	Player player;
-	Projectile playerProjectile{};
-	std::array<Enemy, 55> enemies;
-	std::array<Obstacle, 4> obstacles{};
-	std::array<Projectile, 1> enemyProjectiles{};
-	Enemy enemyUfo;
-
-	int screenWidth;
-	int screenHeight;
-
-	int enemyActionDelay = 500;
-	int enemyLastActionTick = 0;
-    
+	std::array<Invader, 56> invaders;
+	int ufoIdx = 55;
 	bool ufoAppeared = false;
-
-	int shipEnemyMove = SHIP_ENEMY_MOVE_RIGHT;
-	bool shipEnemyMoveDown = false;
+	std::unordered_map<int, bool> invaderCanShoot;		
+	State state = State::MENU;		
+	int screenWidth = 0;
+	int screenHeight = 0;
 	int score = 0;
 	int lifes = 3;	
+
+	std::array<Obstacle, 4> obstacles{};
 };

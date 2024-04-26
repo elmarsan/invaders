@@ -2,61 +2,75 @@
 
 #include "entity.h"
 
-enum class PlayerState
-{
-	IDLE,
-	MOVE_RIGHT,
-	MOVE_LEFT,
-	FIRE,
-	DIE
-};
-
 struct PlayerV2 : EntityV2
 {
-	PlayerV2(float screenWidth, float screenHeight) : EntityV2(SPRITE_PLAYER, { screenWidth, screenHeight }) {}	
+	PlayerV2(float screenWidth, float screenHeight) : EntityV2(SPRITE_PLAYER, { screenWidth, screenHeight }) {}
 
 public:
 	int screenWidth;
 	int screenHeight;
 
-	void SetState(const PlayerState newState)
+	void SetState(const ShipState newState)
 	{
+		auto ticks = platform::getTicks();
+
+		if (newState == ShipState::DESTROYING)
+		{			
+			destroyLastTick = ticks;
+			SetSprite(SPRITE_DESTROY_PLAYER);
+		}
+		else if (newState == ShipState::DESTROYED && state == ShipState::DESTROYING)
+		{
+			destroyLastTick = 0;
+			SetSprite(SPRITE_PLAYER);
+		}
+
 		state = newState;
 	}
 
-	[[nodiscard]] PlayerState GetState() const { return state; }
+	[[nodiscard]] ShipState GetState() const { return state; }
 
 	void Update()
 	{
 		EntityV2::UpdateSprite();
 
+		auto ticks = platform::getTicks();
 		switch (state)
 		{
-		case PlayerState::IDLE: return;
-		case PlayerState::MOVE_RIGHT: MoveRight(); return;
-		case PlayerState::MOVE_LEFT: MoveLeft(); return;
+		case ShipState::IDLE: break;
+		case ShipState::MOVE_RIGHT: MoveRight(); break;
+		case ShipState::MOVE_LEFT: MoveLeft(); break;
+		case ShipState::DESTROYING:
+			if (ticks - destroyLastTick > destroyTicks)
+			{
+				SetState(ShipState::DESTROYED);
+			}
+			break;
 		}
-	}	
+	}
 
-private:	
-	PlayerState state = PlayerState::IDLE;
+private:
+	ShipState state = ShipState::IDLE;
+
+	int destroyTicks = 1200;
+	int destroyLastTick = 0;
 
 	void MoveLeft()
 	{
-		if (coord.x - 15 < 0)
+		if (coord.x - 15.0f < 0)
 		{
 			coord.x = 0;
 		}
 		else
 		{
-			coord.x -= 15;
+			coord.x -= 15.0f;
 		}
 	}
 
 	void MoveRight()
 	{
-		if (coord.x + 15 > (screenWidth - GetW()))
-		{			
+		if (coord.x + 15.0f > (screenWidth - GetW()))
+		{
 			coord.x = screenWidth - GetW();
 		}
 		else
